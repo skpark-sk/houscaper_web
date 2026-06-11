@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Houscaper — Surface Tilesets Reference</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #f0ebe0; }
+  #webgl { position: absolute; inset: 0; }
+  #label-canvas { position: absolute; inset: 0; pointer-events: none; }
+  #ui {
+    position: fixed; top: 16px; left: 20px; z-index: 20;
+    font: 600 20px/1.3 'Helvetica Neue', sans-serif; color: #1a1209;
+    pointer-events: none;
+  }
+  #ui .sub {
+    font: 400 13px/1.5 system-ui; color: #6a5a40; margin-top: 3px;
+  }
+  #legend {
+    position: fixed; top: 16px; right: 20px; z-index: 20;
+    font: 13px system-ui; color: #2a1a0a;
+    background: rgba(240,235,224,.9); border: 1px solid rgba(0,0,0,.12);
+    border-radius: 10px; padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .lrow { display: flex; align-items: center; gap: 7px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; }
+  #controls {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 20;
+    font: 12px system-ui; color: #6a5a40;
+    background: rgba(240,235,224,.85); border: 1px solid rgba(0,0,0,.1);
+    border-radius: 8px; padding: 6px 14px;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/"
+  }
+}
+</script>
+</head>
+<body>
+<canvas id="webgl"></canvas>
+<canvas id="label-canvas"></canvas>
+<div id="ui">
+  SURFACE TILESETS
+  <div class="sub">26 Canonical BMC Tiles · Differentiated floor and roof tilesets</div>
+</div>
+<div id="legend">
+  <div class="lrow"><div class="dot" style="background:#b84830"></div><span>Roof tiles (11)</span></div>
+  <div class="lrow"><div class="dot" style="background:#5a8aaa"></div><span>Floor tiles (11)</span></div>
+  <div class="lrow"><div class="dot" style="background:#c8b890"></div><span>Wall tiles (3)</span></div>
+  <div class="lrow"><div class="dot" style="background:#6050a0"></div><span>Extra tile (1)</span></div>
+</div>
+<div id="controls">드래그: 회전 · 스크롤: 확대 · 우클릭 드래그: 이동</div>
+
+<script src="./bmc-data.js"></script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const { tiles: ALL_TILES } = window.BMC;
+
+// ── Vertex / topology constants ──────────────────────────────────
+const VC = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+const bitOf = v => 1 << (7 - v);
+const isSelected = (cfg, v) => (cfg & bitOf(v)) !== 0;
+
+// BMC z-up → THREE y-up
+const bmc2w = (x, y, z) => [x, z, y];
+
+// ── Colour palette ───────────────────────────────────────────────
+const KIND_COLOR = {
+  roof:  new THREE.Color("#b84830"),
+  wall:  new THREE.Color("#c8b890"),
+  floor: new THREE.Color("#5a8aaa"),
+  extra: new THREE.Color("#6050a0"),
+};
+const KIND_PLATE = {
+  roof:  new THREE.Color("#e8cfc0"),
+  wall:  new THREE.Color("#ede8dc"),
+  floor: new THREE.Color("#c0d8e8"),
+  extra: new THREE.Color("#d8d0ee"),
+};
+
+// ── Tile layout ──────────────────────────────────────────────────
+// Sort into sections: roof, floor, wall, extra
+const ROOF  = ALL_TILES.filter(t => t.kind === 'roof');   // 11
+const FLOOR = ALL_TILES.filter(t => t.kind === 'floor');  // 11
+const WALL  = ALL_TILES.filter(t => t.kind === 'wall');   // 3
+const EXTRA = ALL_TILES.filter(t => t.kind === 'extra');  // 1
+
+const COLS = 6;
+const CW   = 3.0;   // cell width (BMC units between tile centres)
+const CH   = 3.4;   // cell height (z spacing)
+
+// Build a flat ordered list with section breaks
+// Each entry: { tile, col, row } or null (empty cell)
+const layout = []; // { tile, bx, bz }  — BMC x and z offsets for tile group centre
+
+function placeSection(tiles, startRow, label) {
+  tiles.forEach((tile, i) => {
+    layout.push({
+      tile,
+      col: i % COLS,
+      row: startRow + Math.floor(i / COLS),
+      label,
+    });
+  });
+  return startRow + Math.ceil(tiles.length / COLS);
+}
+
+let row = 0;
+const roofRow  = row; row = placeSection(ROOF,  row, 'Roof tiles');
+const floorRow = row + 0.7; row = placeSection(FLOOR, Math.ceil(floorRow), 'Floor tiles');
+const wallRow  = row + 0.7; row = placeSection(WALL,  Math.ceil(wallRow),  'Wall tiles');
+const extraRow = row; row = placeSection(EXTRA, Math.ceil(wallRow) + Math.ceil(WALL.length / COLS), 'Extra tile');
+
+// ── Three.js setup ────────────────────────────────────────────────
+const canvas = document.getElementById('webgl');
+const lCanvas = document.getElementById('label-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0xf0ebe0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+
+// Orthographic camera — isometric-ish view
+const aspect = innerWidth / innerHeight;
+const VIEW_H = row * CH + 4;
+const VIEW_W = VIEW_H * aspect;
+const camera = new THREE.OrthographicCamera(
+  -VIEW_W / 2, VIEW_W / 2,
+  VIEW_H / 2,  -VIEW_H / 2,
+  -200, 200
+);
+// Isometric: 30° elevation, looking from +x+y corner
+camera.position.set((COLS * CW) / 2, VIEW_H * 0.8, (row * CH) / 2 + VIEW_H * 0.2);
+camera.lookAt((COLS * CW) / 2, 0, (row * CH) / 2);
+
+// Lights
+const amb = new THREE.AmbientLight(0xfff8f0, 0.7);
+scene.add(amb);
+const sun = new THREE.DirectionalLight(0xffe8d0, 1.1);
+sun.position.set(5, 8, 3);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xd0e8ff, 0.4);
+fill.position.set(-4, 3, -5);
+scene.add(fill);
+
+// ── Geometry helpers ─────────────────────────────────────────────
+const BOX_GEO = new THREE.BoxGeometry(0.44, 0.44, 0.44);
+const PLATE_GEO = new THREE.BoxGeometry(1.12, 0.04, 1.12);
+
+function buildTileGroup(tile, wx, wz) {
+  const g = new THREE.Group();
+  g.position.set(wx, 0, wz);
+
+  // Backing plate (flat, below the tile)
+  const plateMat = new THREE.MeshLambertMaterial({ color: KIND_PLATE[tile.kind] });
+  const plate = new THREE.Mesh(PLATE_GEO, plateMat);
+  plate.position.set(0.5, -0.06, 0.5);
+  g.add(plate);
+
+  // Sub-voxel boxes for each selected vertex
+  const mat = new THREE.MeshLambertMaterial({ color: KIND_COLOR[tile.kind] });
+  for (let v = 0; v < 8; v++) {
+    if (!isSelected(tile.configId, v)) continue;
+    const cx = VC[v][0] * 0.5 + 0.25;
+    const cy = VC[v][1] * 0.5 + 0.25;
+    const cz = VC[v][2] * 0.5 + 0.25;
+    const [wx, wy, wz] = bmc2w(cx, cy, cz);
+    const mesh = new THREE.Mesh(BOX_GEO, mat);
+    mesh.position.set(wx, wy, wz);
+    g.add(mesh);
+  }
+  return g;
+}
+
+// ── Place tiles in scene ─────────────────────────────────────────
+const tileWorldPos = []; // screen-space anchor per layout entry
+
+layout.forEach(entry => {
+  const wx = entry.col * CW;
+  const wz = entry.row * CH;
+  const group = buildTileGroup(entry.tile, wx, wz);
+  scene.add(group);
+  tileWorldPos.push({ tile: entry.tile, wx: wx + 0.5, wz: wz + 0.5 });
+});
+
+// ── Section header labels (3D planes with canvas textures) ───────
+function makeSectionLabel(text, kind, x, z) {
+  const w = 220, h = 32;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(240,235,224,0)';
+  ctx.fillRect(0, 0, w, h);
+  ctx.font = 'italic bold 18px Helvetica, sans-serif';
+  ctx.fillStyle = KIND_COLOR[kind].getStyle
+    ? `#${KIND_COLOR[kind].getHexString()}` : '#888';
+  ctx.fillText(text, 4, 22);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.32), mat);
+  // Lay flat
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(x, 0.02, z);
+  scene.add(mesh);
+}
+
+makeSectionLabel('Roof tiles',  'roof',  (COLS * CW) / 2 - 0.5, roofRow  * CH - 0.8);
+makeSectionLabel('Floor tiles', 'floor', (COLS * CW) / 2 - 0.5, Math.ceil(floorRow) * CH - 0.8);
+makeSectionLabel('Wall tiles',  'wall',  (COLS * CW) / 2 - 0.5, Math.ceil(wallRow)  * CH - 0.8);
+
+// ── OrbitControls ────────────────────────────────────────────────
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set((COLS * CW) / 2, 0, (Math.ceil(wallRow) * CH) / 2);
+controls.update();
+
+// ── Label canvas 2D ──────────────────────────────────────────────
+const lCtx = lCanvas.getContext('2d');
+
+function projectToScreen(wx, wy, wz) {
+  const v = new THREE.Vector3(wx, wy, wz);
+  v.project(camera);
+  return {
+    x: (v.x + 1) / 2 * lCanvas.width,
+    y: (1 - (v.y + 1) / 2) * lCanvas.height,
+  };
+}
+
+function drawLabels() {
+  lCtx.clearRect(0, 0, lCanvas.width, lCanvas.height);
+  lCtx.textAlign = 'center';
+
+  tileWorldPos.forEach(({ tile, wx, wz }) => {
+    const p = projectToScreen(wx, -0.1, wz);
+    // Tile number
+    lCtx.font = `bold ${Math.round(lCanvas.width / 110)}px system-ui`;
+    lCtx.fillStyle = `#${KIND_COLOR[tile.kind].getHexString()}`;
+    lCtx.fillText(`T${tile.index}`, p.x, p.y);
+    // Config IDs (orbit sample)
+    const ids = tile.orbit.slice(0, 4).join(' ');
+    lCtx.font = `${Math.round(lCanvas.width / 130)}px monospace`;
+    lCtx.fillStyle = '#888';
+    lCtx.fillText(ids, p.x, p.y + Math.round(lCanvas.width / 100));
+    if (tile.orbit.length > 4) {
+      const ids2 = tile.orbit.slice(4).join(' ');
+      lCtx.fillText(ids2, p.x, p.y + Math.round(lCanvas.width / 50));
+    }
+  });
+}
+
+// ── Resize ───────────────────────────────────────────────────────
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h);
+  lCanvas.width  = w * devicePixelRatio;
+  lCanvas.height = h * devicePixelRatio;
+  lCanvas.style.width  = w + 'px';
+  lCanvas.style.height = h + 'px';
+  const a = w / h;
+  const vh = VIEW_H;
+  const vw = vh * a;
+  camera.left   = -vw / 2;
+  camera.right  =  vw / 2;
+  camera.top    =  vh / 2;
+  camera.bottom = -vh / 2;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Render loop ──────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  drawLabels();
+}
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Houscaper — Tile View</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  #hud {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    font: 13px/1.6 system-ui, sans-serif; color: #e8e4dc;
+    background: rgba(18,22,30,.72); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 12px;
+    padding: 12px 16px; max-width: 280px; user-select: none;
+  }
+  #hud h1 { font-size: 15px; margin: 0 0 5px; }
+  #hud .dim { color: #8a9aaa; font-size: 12px; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; font-size:12px; }
+  .sw { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  #stats { margin-top:8px; border-top:1px solid rgba(255,255,255,.1); padding-top:7px; font-size:12px; color:#9ab0c0; }
+  #msg {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:10;
+    font:13px system-ui,sans-serif; color:#fff;
+    background:rgba(160,60,50,.88); padding:8px 16px; border-radius:20px;
+    opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap;
+  }
+  label { cursor:pointer; display:flex; align-items:center; gap:5px; margin-top:5px; font-size:12px; }
+  #badge {
+    position:fixed; top:14px; right:14px; z-index:10;
+    font:12px system-ui,sans-serif; color:#9ab0c0;
+    background:rgba(18,22,30,.72); border:1px solid rgba(255,255,255,.08);
+    border-radius:8px; padding:8px 12px;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="hud">
+  <h1>Houscaper — Tile View</h1>
+  <div class="dim">좌클릭: 추가 · 우클릭: 제거 · 드래그: 회전</div>
+  <div class="legend">
+    <span><span class="sw" style="background:#c05040"></span>roof</span>
+    <span><span class="sw" style="background:#ede0cc"></span>wall</span>
+    <span><span class="sw" style="background:#7090a8"></span>floor</span>
+    <span><span class="sw" style="background:#7060a0"></span>extra</span>
+  </div>
+  <label><input type="checkbox" id="showVoxels" /><span>복셀 박스</span></label>
+  <label><input type="checkbox" id="showGap" checked /><span>서브복셀 갭</span></label>
+  <div id="stats"></div>
+</div>
+<div id="msg"></div>
+<div id="badge">논문 직각 타일 모드</div>
+
+<script src="./bmc-data.js"></script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ═══════════════════════════════════════════
+//  BMC topology (mirrors bmc-core/topology.ts)
+// ═══════════════════════════════════════════
+//  Each cube vertex v occupies one octant of the unit cube:
+//    sub-voxel v  ↔  octant VC[v] × 0.5  …  VC[v] × 0.5 + (0.5,0.5,0.5)
+//    sub-voxel center  =  VC[v] × 0.5 + (0.25, 0.25, 0.25)
+const VC = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+const bitOf = v => 1 << (7 - v);
+const { tiles: TILES, lookup: LOOKUP } = window.BMC;
+
+// Sub-voxel center inside unit cube (BMC space)
+const svCenter = v => [VC[v][0]*0.5+0.25, VC[v][1]*0.5+0.25, VC[v][2]*0.5+0.25];
+
+const KIND_COLOR = {
+  roof:  new THREE.Color("#c05040"),
+  wall:  new THREE.Color("#ede0cc"),
+  floor: new THREE.Color("#7090a8"),
+  extra: new THREE.Color("#7060a0"),
+  none:  new THREE.Color("#b0bfc8"),
+};
+
+// BMC (x,y,z) → three.js world (x, z, y)  [three is y-up; BMC is z-up]
+const bmc2w = (x,y,z) => [x, z, y];
+
+// ═══════════════════════════════════════════
+//  Scene setup
+// ═══════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#1a1f2a");
+scene.fog = new THREE.FogExp2("#1a1f2a", 0.012);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 300);
+camera.position.set(14, 16, 18);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(2, 2, 2);
+controls.enableDamping = true;
+
+// Lighting — clean architectural look
+scene.add(new THREE.AmbientLight("#5a7090", 0.6));
+const sunL = new THREE.DirectionalLight("#fff5e0", 2.4);
+sunL.position.set(12, 22, 10);
+scene.add(sunL);
+const fillL = new THREE.DirectionalLight("#6090c0", 0.55);
+fillL.position.set(-14, 8, -12);
+scene.add(fillL);
+const rimL = new THREE.DirectionalLight("#ffc880", 0.3);
+rimL.position.set(4, -4, -18);
+scene.add(rimL);
+
+// Ground grid
+scene.add(new THREE.GridHelper(40, 40, "#252d3a", "#202830"));
+
+// ═══════════════════════════════════════════
+//  Sub-voxel instanced mesh (one per kind)
+// ═══════════════════════════════════════════
+//  We render each *selected* sub-voxel of each valid cube as a small box
+//  coloured by its tile classification. This is exactly the "논문 Fig.44"
+//  representation: the unit-cube split into 8 octants with colour per kind.
+
+const SV_MAX = 60000; // max sub-voxels across all cubes
+let showGap = true;   // slight inset between sub-voxels
+
+// One InstancedMesh per kind  →  correct material per kind, mergeable
+const svGeo = new THREE.BoxGeometry(1, 1, 1);
+const svInst = {};
+for (const kind of ["roof","wall","floor","extra","none"]) {
+  svInst[kind] = new THREE.InstancedMesh(
+    svGeo,
+    new THREE.MeshStandardMaterial({ color: KIND_COLOR[kind], roughness: 0.8, flatShading: false }),
+    SV_MAX
+  );
+  svInst[kind].count = 0;
+  scene.add(svInst[kind]);
+}
+
+const dummy = new THREE.Object3D();
+
+function rebuildSubvoxels() {
+  // reset counts
+  for (const k of Object.keys(svInst)) svInst[k].count = 0;
+  const counters = { roof:0, wall:0, floor:0, extra:0, none:0 };
+
+  const seen = new Set();
+  const svSize = showGap ? 0.46 : 0.5; // slight gap to show octant seams
+
+  for (const k of voxels) {
+    const [bx, by, bz] = k.split(",").map(Number);
+    // All 8 cubes that have this voxel as a vertex
+    for (let dv = 0; dv < 8; dv++) {
+      const cx = bx - VC[dv][0];
+      const cy = by - VC[dv][1];
+      const cz = bz - VC[dv][2];
+      const ck = `${cx},${cy},${cz}`;
+      if (seen.has(ck)) continue;
+      seen.add(ck);
+
+      const cfg = cubeConfig(cx, cy, cz);
+      if (cfg === 0 || cfg === 255) continue;
+      const entry = LOOKUP[cfg];
+      if (entry.kind !== "tile") continue;
+      const kind = TILES[entry.tile].kind;
+
+      // Emit a box for each *selected* sub-voxel
+      for (let v = 0; v < 8; v++) {
+        if (!(cfg & bitOf(v))) continue; // not selected
+        const [svx, svy, svz] = svCenter(v); // in BMC unit-cube coords
+        // World position: cube min corner + sub-voxel center
+        const [wx, wy, wz] = bmc2w(cx + svx, cy + svy, cz + svz);
+        dummy.position.set(wx, wy, wz);
+        dummy.scale.setScalar(svSize);
+        dummy.updateMatrix();
+        const inst = svInst[kind];
+        inst.setMatrixAt(inst.count++, dummy.matrix);
+        counters[kind]++;
+      }
+    }
+  }
+
+  for (const k of Object.keys(svInst)) {
+    svInst[k].instanceMatrix.needsUpdate = true;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Voxel store + BMC building logic
+// ═══════════════════════════════════════════
+const voxels = new Set();
+const key    = (x,y,z) => `${x},${y},${z}`;
+const has    = (x,y,z) => voxels.has(key(x,y,z));
+const BOUND = 20, HEIGHT = 12;
+const inBounds = (x,y,z) => Math.abs(x)<=BOUND && Math.abs(y)<=BOUND && z>=0 && z<HEIGHT;
+
+function cubeConfig(cx, cy, cz, extra = null) {
+  let cfg = 0;
+  for (let v = 0; v < 8; v++) {
+    const px = cx+VC[v][0], py = cy+VC[v][1], pz = cz+VC[v][2];
+    let occ = has(px, py, pz);
+    if (extra && extra.x===px && extra.y===py && extra.z===pz) occ = extra.value;
+    if (occ) cfg |= bitOf(v);
+  }
+  return cfg;
+}
+
+const cubesOf = (x,y,z) => VC.map(([dx,dy,dz]) => [x-dx,y-dy,z-dz]);
+
+function canToggle(x, y, z, value) {
+  for (const [cx,cy,cz] of cubesOf(x,y,z)) {
+    const cfg = cubeConfig(cx,cy,cz,{x,y,z,value});
+    if (cfg!==0 && cfg!==255 && LOOKUP[cfg].kind==="invalid") return false;
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════
+//  Voxel boxes (picking + optional overlay)
+// ═══════════════════════════════════════════
+const voxelGroup = new THREE.Group();
+scene.add(voxelGroup);
+const boxGeo  = new THREE.BoxGeometry(1, 1, 1);
+const pickMat = new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false });
+const dispMat = new THREE.MeshStandardMaterial({ color:"#4080c0", transparent:true, opacity:0.22, roughness:0.9 });
+let showVoxels = false;
+
+function rebuildVoxelBoxes() {
+  voxelGroup.clear();
+  for (const k of voxels) {
+    const [x,y,z] = k.split(",").map(Number);
+    const m = new THREE.Mesh(boxGeo, showVoxels ? dispMat : pickMat);
+    const [wx,wy,wz] = bmc2w(x+0.5, y+0.5, z+0.5);
+    m.position.set(wx, wy, wz);
+    m.userData.voxel = [x,y,z];
+    voxelGroup.add(m);
+  }
+}
+
+function updateStats() {
+  const cnt = {roof:0,wall:0,floor:0,extra:0};
+  const seen = new Set();
+  for (const k of voxels) {
+    const [x,y,z] = k.split(",").map(Number);
+    for (const [cx,cy,cz] of cubesOf(x,y,z)) {
+      const ck = key(cx,cy,cz);
+      if (seen.has(ck)) continue; seen.add(ck);
+      const e = LOOKUP[cubeConfig(cx,cy,cz)];
+      const kk = e.kind==="tile" ? TILES[e.tile].kind : "none";
+      if (kk in cnt) cnt[kk]++;
+    }
+  }
+  document.getElementById("stats").textContent =
+    `복셀 ${voxels.size} · roof ${cnt.roof} / wall ${cnt.wall} / floor ${cnt.floor} / extra ${cnt.extra}`;
+}
+
+function refresh() { rebuildSubvoxels(); rebuildVoxelBoxes(); updateStats(); }
+
+// ═══════════════════════════════════════════
+//  Interaction
+// ═══════════════════════════════════════════
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+let downAt = null;
+
+const groundPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI/2),
+  new THREE.MeshBasicMaterial({ visible: false })
+);
+scene.add(groundPlane);
+
+function flash(msg) {
+  const el = document.getElementById("msg");
+  el.textContent = msg; el.style.opacity = "1";
+  clearTimeout(flash._t); flash._t = setTimeout(() => el.style.opacity = "0", 1400);
+}
+
+function setVoxel(x, y, z, value) {
+  if (!inBounds(x,y,z)) return flash("격자 범위 초과");
+  if (has(x,y,z) === value) return;
+  if (!canToggle(x,y,z,value)) return flash("점/모서리 연결 금지");
+  value ? voxels.add(key(x,y,z)) : voxels.delete(key(x,y,z));
+  refresh();
+}
+
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
+renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY, e.button]; });
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!downAt) return;
+  const [sx,sy,btn] = downAt; downAt = null;
+  if (Math.hypot(e.clientX-sx, e.clientY-sy) > 5) return;
+  pointer.set((e.clientX/innerWidth)*2-1, -(e.clientY/innerHeight)*2+1);
+  raycaster.setFromCamera(pointer, camera);
+
+  const hit = raycaster.intersectObjects(voxelGroup.children)[0];
+  if (hit) {
+    const [x,y,z] = hit.object.userData.voxel;
+    if (btn===2) return setVoxel(x,y,z,false);
+    const n = hit.face.normal;
+    return setVoxel(x+Math.round(n.x), y+Math.round(n.z), z+Math.round(n.y), true);
+  }
+  if (btn===0) {
+    const gh = raycaster.intersectObject(groundPlane)[0];
+    if (gh) setVoxel(Math.floor(gh.point.x), Math.floor(gh.point.z), 0, true);
+  }
+});
+
+document.getElementById("showVoxels").addEventListener("change", e => {
+  showVoxels = e.target.checked; rebuildVoxelBoxes();
+});
+document.getElementById("showGap").addEventListener("change", e => {
+  showGap = e.target.checked; rebuildSubvoxels();
+});
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ═══════════════════════════════════════════
+//  Expose + starter house
+// ═══════════════════════════════════════════
+window.voxels = voxels;
+window.refresh = refresh;
+window.setVoxel = setVoxel;
+
+for (let x=0; x<=3; x++)
+  for (let y=0; y<=2; y++)
+    for (let z=0; z<=1; z++) voxels.add(key(x,y,z));
+for (let x=0; x<=3; x++) voxels.add(key(x,1,2));
+refresh();
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

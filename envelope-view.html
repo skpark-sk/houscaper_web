@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>Houscaper — Envelope View</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  #hud {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    font: 13px/1.6 system-ui, sans-serif; color: #e8e4dc;
+    background: rgba(18,22,30,.72); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 12px;
+    padding: 12px 16px; max-width: 280px; user-select: none;
+  }
+  #hud h1 { font-size: 15px; margin: 0 0 5px; }
+  #hud .dim { color: #8a9aaa; font-size: 12px; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; font-size:12px; }
+  .sw { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  #stats { margin-top:8px; border-top:1px solid rgba(255,255,255,.1); padding-top:7px; font-size:12px; color:#9ab0c0; }
+  #msg {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:10;
+    font:13px system-ui,sans-serif; color:#fff;
+    background:rgba(160,60,50,.88); padding:8px 16px; border-radius:20px;
+    opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap;
+  }
+  label { cursor:pointer; display:flex; align-items:center; gap:5px; margin-top:5px; font-size:12px; }
+  #badge {
+    position:fixed; top:14px; right:14px; z-index:10;
+    font:12px system-ui,sans-serif; color:#9ab0c0;
+    background:rgba(18,22,30,.72); border:1px solid rgba(255,255,255,.08);
+    border-radius:8px; padding:8px 12px;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="hud">
+  <h1>Houscaper — Envelope</h1>
+  <div class="dim">좌클릭: 추가 · 우클릭: 제거 · 드래그: 회전</div>
+  <div class="legend">
+    <span><span class="sw" style="background:#c05040"></span>roof</span>
+    <span><span class="sw" style="background:#ede0cc"></span>wall</span>
+    <span><span class="sw" style="background:#7090a8"></span>floor</span>
+    <span><span class="sw" style="background:#7060a0"></span>extra</span>
+  </div>
+  <label><input type="checkbox" id="showVoxels" /><span>복셀 박스</span></label>
+  <div id="stats"></div>
+</div>
+<div id="msg"></div>
+<div id="badge">논문 Envelope 모드</div>
+
+<script src="./bmc-data.js"></script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ══════════════════════════════════════════════════════════
+//  BMC topology
+// ══════════════════════════════════════════════════════════
+// Vertex v occupies sub-voxel octant VC[v] × 0.5 → VC[v] × 0.5 + [0.5,0.5,0.5]
+const VC = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+const bitOf = v => 1 << (7 - v);
+const { tiles: TILES, lookup: LOOKUP } = window.BMC;
+
+// ══════════════════════════════════════════════════════════
+//  Scene
+// ══════════════════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#141820");
+scene.fog = new THREE.FogExp2("#141820", 0.01);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 300);
+camera.position.set(12, 14, 16);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(2, 2, 2);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight("#5a7090", 0.65));
+const sunL = new THREE.DirectionalLight("#fff8e0", 2.6);
+sunL.position.set(10, 20, 8);
+scene.add(sunL);
+const fillL = new THREE.DirectionalLight("#6090c0", 0.5);
+fillL.position.set(-12, 8, -10);
+scene.add(fillL);
+
+scene.add(new THREE.GridHelper(36, 36, "#1e2530", "#191f2a"));
+
+// ══════════════════════════════════════════════════════════
+//  Materials per tile kind
+// ══════════════════════════════════════════════════════════
+const MATS = {
+  roof:  new THREE.MeshStandardMaterial({ color:"#c05040", roughness:0.72, metalness:0.02, side:THREE.DoubleSide }),
+  wall:  new THREE.MeshStandardMaterial({ color:"#ddd0b8", roughness:0.78, metalness:0.01, side:THREE.DoubleSide }),
+  floor: new THREE.MeshStandardMaterial({ color:"#6888a0", roughness:0.75, metalness:0.02, side:THREE.DoubleSide }),
+  extra: new THREE.MeshStandardMaterial({ color:"#7060a0", roughness:0.72, metalness:0.02, side:THREE.DoubleSide }),
+};
+
+// ══════════════════════════════════════════════════════════
+//  Voxel store + BMC
+// ══════════════════════════════════════════════════════════
+const voxels = new Set();
+const key    = (x, y, z) => `${x},${y},${z}`;
+const has    = (x, y, z) => voxels.has(key(x, y, z));
+const BOUND = 20, HEIGHT = 12;
+const inBounds = (x, y, z) =>
+  Math.abs(x) <= BOUND && Math.abs(y) <= BOUND && z >= 0 && z < HEIGHT;
+
+function cubeConfig(cx, cy, cz, extra = null) {
+  let cfg = 0;
+  for (let v = 0; v < 8; v++) {
+    const px = cx+VC[v][0], py = cy+VC[v][1], pz = cz+VC[v][2];
+    let occ = has(px, py, pz);
+    if (extra && extra.x===px && extra.y===py && extra.z===pz) occ = extra.value;
+    if (occ) cfg |= bitOf(v);
+  }
+  return cfg;
+}
+const cubesOf = (x, y, z) => VC.map(([dx,dy,dz]) => [x-dx, y-dy, z-dz]);
+
+function canToggle(x, y, z, value) {
+  for (const [cx, cy, cz] of cubesOf(x, y, z)) {
+    const cfg = cubeConfig(cx, cy, cz, {x, y, z, value});
+    if (cfg !== 0 && cfg !== 255 && LOOKUP[cfg].kind === "invalid") return false;
+  }
+  return true;
+}
+
+// ══════════════════════════════════════════════════════════
+//  Surface mesh — flat marching-cube polygons
+//
+//  Each boundary cube contributes one flat polygon (the
+//  marching-cube cross-section).  Adjacent polygons share
+//  edge midpoints → seamless faceted mesh, no individual
+//  voxel blocks.  Roof faces are diagonal, wall corners
+//  are sharp right angles (no fillet, no extrusion).
+// ══════════════════════════════════════════════════════════
+const CUBE_EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+// Edge indices on each cube face: bottom top front back left right
+const FACE_EDGES = [
+  [0,1,2,3],[4,5,6,7],[0,9,4,8],[2,11,6,10],[3,11,7,8],[1,10,5,9]
+];
+
+// Marching-cube cross-section polygon — BMC-space ordered points.
+function buildPoly(config, cx, cy, cz) {
+  const mids = {};
+  for (let ei=0;ei<12;ei++) {
+    const [a,b]=CUBE_EDGES[ei];
+    if (!!(config&bitOf(a)) !== !!(config&bitOf(b)))
+      mids[ei]=[cx+(VC[a][0]+VC[b][0])*0.5, cy+(VC[a][1]+VC[b][1])*0.5, cz+(VC[a][2]+VC[b][2])*0.5];
+  }
+  const ids=Object.keys(mids).map(Number); if (!ids.length) return [];
+  const adj={}; for (const ei of ids) adj[ei]=[];
+  for (const fe of FACE_EDGES) {
+    const cr=fe.filter(ei=>mids[ei]!==undefined);
+    if (cr.length===2){ adj[cr[0]].push(cr[1]); adj[cr[1]].push(cr[0]); }
+  }
+  const poly=[]; const vis=new Set(); let cur=ids[0],prev=-1;
+  while (!vis.has(cur)) {
+    vis.add(cur); poly.push(mids[cur]);
+    const nxt=adj[cur]?.find(n=>n!==prev&&!vis.has(n));
+    if (nxt===undefined) break; prev=cur; cur=nxt;
+  }
+  return poly;
+}
+
+// Corner configs → L-shaped orthogonal panels instead of diagonal cross-section.
+// Orbit [1,2,4,8]    = single top vertex  (floor corners)
+// Orbit [16,32,64,128] = single bottom vertex (roof corners)
+// Orbit [17,34,68,136] = vertical pair    (wall corners)
+const CORNER_CONFIGS = new Set([1,2,4,8,16,32,64,128,17,34,68,136]);
+
+// Emits ㄴ/ㄱ-shaped panels for corner tiles.
+// Vertical-pair configs → 2 orthogonal panels; single-vertex → 3 panels.
+// Each panel sits at the cube mid-plane so it aligns seamlessly with
+// the adjacent flat-wall marching-cube cross-sections (which also sit
+// at the cube mid-planes).
+function addCornerL(config, cx, cy, cz, pos) {
+  const push = ([bx,by,bz]) => pos.push(bx, bz, by); // BMC→THREE (y-up)
+  const SEL = [];
+  for (let v=0;v<8;v++) if (config&bitOf(v)) SEL.push(v);
+
+  // All selected verts in these orbits share the same (vx, vy)
+  const vx=VC[SEL[0]][0], vy=VC[SEL[0]][1];
+  const vz0=Math.min(...SEL.map(v=>VC[v][2]));
+  const vz1=Math.max(...SEL.map(v=>VC[v][2]));
+
+  // Sub-voxel region bounds (quarter-unit in x,y; possibly half in z)
+  const x0=cx+vx*0.5, x1=x0+0.5;
+  const y0=cy+vy*0.5, y1=y0+0.5;
+  const z0=cz+vz0*0.5, z1=cz+vz1*0.5+0.5;
+
+  // Mid-plane positions — flat wall panels from adjacent cubes sit here too
+  const xf=cx+0.5, yf=cy+0.5;
+
+  const eq=(p0,p1,p2,p3)=>{push(p0);push(p1);push(p2);push(p0);push(p2);push(p3);};
+
+  // Panel A — y-face at cube-centre y, spanning [x0,x1]×[z0,z1]
+  eq([x0,yf,z0],[x1,yf,z0],[x1,yf,z1],[x0,yf,z1]);
+  // Panel B — x-face at cube-centre x, spanning [y0,y1]×[z0,z1]
+  eq([xf,y0,z0],[xf,y1,z0],[xf,y1,z1],[xf,y0,z1]);
+  // Panel C — z-face at cube-centre z (only for single-vertex configs)
+  if (SEL.length===1) {
+    const zf=cz+0.5;
+    eq([x0,y0,zf],[x1,y0,zf],[x1,y1,zf],[x0,y1,zf]);
+  }
+}
+
+// Fan-triangulate the marching-cube cross-section polygon with outward winding.
+function addPolyFace(poly, config, cx, cy, cz, pos) {
+  // Corner tiles → orthogonal L-shape (no diagonal chamfer)
+  if (CORNER_CONFIGS.has(config)) { addCornerL(config, cx, cy, cz, pos); return; }
+
+  if (poly.length < 3) return;
+
+  // Flat polygon: orient normal outward (away from selected vertices' centroid)
+  const [x0,y0,z0]=poly[0],[x1,y1,z1]=poly[1],[x2,y2,z2]=poly[2];
+  const ex=x1-x0,ey=y1-y0,ez=z1-z0,fx=x2-x0,fy=y2-y0,fz=z2-z0;
+  const nx=ey*fz-ez*fy, ny=ez*fx-ex*fz, nz=ex*fy-ey*fx;
+  let scx=0,scy=0,scz=0,sc=0;
+  for(let v=0;v<8;v++) if(config&bitOf(v)){scx+=cx+VC[v][0];scy+=cy+VC[v][1];scz+=cz+VC[v][2];sc++;}
+  if(sc){scx/=sc;scy/=sc;scz/=sc;}
+  let pcx=0,pcy=0,pcz=0;
+  for(const [px,py,pz] of poly){pcx+=px;pcy+=py;pcz+=pz;}
+  pcx/=poly.length;pcy/=poly.length;pcz/=poly.length;
+  const flip=nx*(scx-pcx)+ny*(scy-pcy)+nz*(scz-pcz)>0;
+  const push=([bx,by,bz])=>pos.push(bx,bz,by);
+  for(let i=1;i<poly.length-1;i++){
+    if(flip){push(poly[0]);push(poly[i+1]);push(poly[i]);}
+    else    {push(poly[0]);push(poly[i]);  push(poly[i+1]);}
+  }
+}
+
+const surfaceGroup = new THREE.Group();
+scene.add(surfaceGroup);
+
+function rebuildSurface() {
+  surfaceGroup.clear();
+  const posByKind = { roof:[], wall:[], floor:[], extra:[] };
+  const seen = new Set();
+
+  for (const k of voxels) {
+    const [bx,by,bz] = k.split(",").map(Number);
+    for (let dv=0;dv<8;dv++) {
+      const cx=bx-VC[dv][0], cy=by-VC[dv][1], cz=bz-VC[dv][2];
+      const ck=`${cx},${cy},${cz}`;
+      if (seen.has(ck)) continue; seen.add(ck);
+
+      const cfg = cubeConfig(cx,cy,cz);
+      if (cfg===0||cfg===255) continue;
+      const entry = LOOKUP[cfg];
+      if (entry.kind!=="tile") continue;
+      const kind = TILES[entry.tile].kind;
+
+      addPolyFace(buildPoly(cfg,cx,cy,cz), cfg, cx, cy, cz, posByKind[kind]);
+    }
+  }
+
+  for (const [kind, pos] of Object.entries(posByKind)) {
+    if (!pos.length) continue;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, MATS[kind]);
+    surfaceGroup.add(mesh);
+    // Wireframe edge lines (thesis style)
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo, 15),
+      new THREE.LineBasicMaterial({ color:"#000000", opacity:0.25, transparent:true })
+    );
+    surfaceGroup.add(edges);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  Voxel boxes (picking)
+// ══════════════════════════════════════════════════════════
+const voxelGroup = new THREE.Group();
+scene.add(voxelGroup);
+const boxGeo  = new THREE.BoxGeometry(1, 1, 1);
+const pickMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+const dispMat = new THREE.MeshStandardMaterial({ color:"#4080c0", transparent:true, opacity:0.2, roughness:0.9 });
+let showVoxels = false;
+
+function rebuildVoxelBoxes() {
+  voxelGroup.clear();
+  for (const k of voxels) {
+    const [x, y, z] = k.split(",").map(Number);
+    const m = new THREE.Mesh(boxGeo, showVoxels ? dispMat : pickMat);
+    m.position.set(x+0.5, z+0.5, y+0.5);
+    m.userData.voxel = [x, y, z];
+    voxelGroup.add(m);
+  }
+}
+
+function updateStats() {
+  const cnt = {roof:0,wall:0,floor:0,extra:0};
+  const seen = new Set();
+  for (const k of voxels) {
+    const [x,y,z] = k.split(",").map(Number);
+    for (const [cx,cy,cz] of cubesOf(x,y,z)) {
+      const ck = key(cx,cy,cz);
+      if (seen.has(ck)) continue; seen.add(ck);
+      const e = LOOKUP[cubeConfig(cx,cy,cz)];
+      const kk = e.kind==="tile" ? TILES[e.tile].kind : "none";
+      if (kk in cnt) cnt[kk]++;
+    }
+  }
+  document.getElementById("stats").textContent =
+    `복셀 ${voxels.size} · roof ${cnt.roof} / wall ${cnt.wall} / floor ${cnt.floor} / extra ${cnt.extra}`;
+}
+
+function refresh() { rebuildSurface(); rebuildVoxelBoxes(); updateStats(); }
+
+// ══════════════════════════════════════════════════════════
+//  Interaction
+// ══════════════════════════════════════════════════════════
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+let downAt = null;
+
+const groundPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ visible: false })
+);
+scene.add(groundPlane);
+
+function flash(msg) {
+  const el = document.getElementById("msg");
+  el.textContent = msg; el.style.opacity = "1";
+  clearTimeout(flash._t); flash._t = setTimeout(() => el.style.opacity = "0", 1400);
+}
+
+function setVoxel(x, y, z, value) {
+  if (!inBounds(x, y, z)) return flash("격자 범위 초과");
+  if (has(x, y, z) === value) return;
+  if (!canToggle(x, y, z, value)) return flash("점/모서리 연결 금지");
+  value ? voxels.add(key(x, y, z)) : voxels.delete(key(x, y, z));
+  refresh();
+}
+
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
+renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY, e.button]; });
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!downAt) return;
+  const [sx, sy, btn] = downAt; downAt = null;
+  if (Math.hypot(e.clientX - sx, e.clientY - sy) > 5) return;
+  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+
+  const hit = raycaster.intersectObjects(voxelGroup.children)[0];
+  if (hit) {
+    const [x, y, z] = hit.object.userData.voxel;
+    if (btn === 2) return setVoxel(x, y, z, false);
+    const n = hit.face.normal;
+    return setVoxel(x + Math.round(n.x), y + Math.round(n.z), z + Math.round(n.y), true);
+  }
+  if (btn === 0) {
+    const gh = raycaster.intersectObject(groundPlane)[0];
+    if (gh) setVoxel(Math.floor(gh.point.x), Math.floor(gh.point.z), 0, true);
+  }
+});
+
+document.getElementById("showVoxels").addEventListener("change", e => {
+  showVoxels = e.target.checked; rebuildVoxelBoxes();
+});
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ══════════════════════════════════════════════════════════
+//  Expose + starter voxels
+// ══════════════════════════════════════════════════════════
+window.voxels = voxels;
+window.refresh = refresh;
+window.setVoxel = setVoxel;
+
+for (let x = 0; x <= 3; x++)
+  for (let y = 0; y <= 2; y++)
+    for (let z = 0; z <= 1; z++) voxels.add(key(x, y, z));
+for (let x = 0; x <= 3; x++) voxels.add(key(x, 1, 2));
+refresh();
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
