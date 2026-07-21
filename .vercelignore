@@ -1,0 +1,9 @@
+node_modules
+.vercel
+*.3dm
+*.3dm.rhl
+*.gh
+*.pdf
+scripts
+check-bmc.mjs
+package-lock.json
