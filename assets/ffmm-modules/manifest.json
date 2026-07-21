@@ -1,24 +1,100 @@
 {
-  "source": "22.3dm Arc_Frame clusters (ffmm.3dm MODULE::* layers are 6-face boxes only; detail lives in MATERIAL / Material difference)",
+  "source": "Unit modules built to thesis envelope 0.9×0.9×0.54 m (22.3dm Material difference are fragment shards; MODULE layers are empty 6-face boxes)",
   "units": "Meters",
-  "moduleSize": { "x": 0.9, "y": 0.9, "z": 0.54 },
+  "moduleSize": {
+    "x": 0.9,
+    "y": 0.9,
+    "z": 0.54
+  },
   "rhinoUp": "Z",
   "modules": {
     "base": [
-      { "file": "base_0.obj", "verts": 46, "faces": 56 },
-      { "file": "base_1.obj", "verts": 46, "faces": 56 }
+      {
+        "file": "base_0.obj",
+        "verts": 128,
+        "faces": 96,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      },
+      {
+        "file": "base_1.obj",
+        "verts": 128,
+        "faces": 96,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      }
     ],
     "floor": [
-      { "file": "floor_0.obj", "verts": 19, "faces": 18 },
-      { "file": "floor_1.obj", "verts": 19, "faces": 18 }
-    ],
-    "opening": [
-      { "file": "opening_0.obj", "verts": 10, "faces": 5 },
-      { "file": "opening_1.obj", "verts": 10, "faces": 5 }
+      {
+        "file": "floor_0.obj",
+        "verts": 72,
+        "faces": 54,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      },
+      {
+        "file": "floor_1.obj",
+        "verts": 72,
+        "faces": 54,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      }
     ],
     "window": [
-      { "file": "window_0.obj", "verts": 46, "faces": 37 },
-      { "file": "window_1.obj", "verts": 46, "faces": 37 }
+      {
+        "file": "window_0.obj",
+        "verts": 80,
+        "faces": 60,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      },
+      {
+        "file": "window_1.obj",
+        "verts": 80,
+        "faces": 60,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      }
+    ],
+    "opening": [
+      {
+        "file": "opening_0.obj",
+        "verts": 64,
+        "faces": 48,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      },
+      {
+        "file": "opening_1.obj",
+        "verts": 64,
+        "faces": 48,
+        "bbox": [
+          0.9,
+          0.9,
+          0.54
+        ]
+      }
     ]
   }
 }

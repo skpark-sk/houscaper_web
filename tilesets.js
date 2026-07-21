@@ -36,7 +36,7 @@ window.TILESETS = {
   ffmm: {
     id: "ffmm",
     label: "ffmm architectural",
-    thesis: "§3.3 + ffmm.3dm MODULE::* / 22.3dm Material difference",
+    thesis: "§3.3 unit modules 0.9×0.9×0.54 m (Material difference in 22.3dm are shards; MODULE boxes empty)",
     mode: "architectural",
     // Labels from revised tile2.gh interpolate(..., id)
     types: {

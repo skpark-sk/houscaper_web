@@ -174,20 +174,22 @@ function parseObj(text) {
 async function loadArchMeshes() {
   const ts = SETS.ffmm;
   const base = ts.meshBase || "./assets/ffmm-modules/";
+  // Thesis module footprint in metres → one voxel. Do NOT stretch by shard bbox
+  // (old path scaled L-fragments to fill the cell and looked like debris).
+  const mod = ts.moduleSize || { x: 0.9, y: 0.9, z: 0.54 };
+  const sUni = 0.92 / Math.max(mod.x, mod.y, 1e-6);
   await Promise.all(Object.entries(ts.types).map(async ([id, meta]) => {
     const file = meta.mesh || `${meta.key}_0.obj`;
     const res = await fetch(base + file);
     if (!res.ok) throw new Error(`mesh ${file}: ${res.status}`);
     const geo = parseObj(await res.text());
-    // Fit XY into ~0.92 of a voxel; keep Z proportion from Rhino metres
+    geo.scale(sUni, sUni, sUni);
     geo.computeBoundingBox();
-    const size = new THREE.Vector3();
-    geo.boundingBox.getSize(size);
-    const sxy = 0.92 / Math.max(size.x, size.z, 1e-6);
-    geo.scale(sxy, sxy, sxy);
-    geo.computeBoundingBox();
-    // sit on voxel floor: min.y → 0
-    geo.translate(0, -geo.boundingBox.min.y, 0);
+    const bb = geo.boundingBox;
+    const cx = 0.5 * (bb.min.x + bb.max.x);
+    const cz = 0.5 * (bb.min.z + bb.max.z);
+    // Center on voxel XY (Three XZ); sit on voxel floor (min.y → 0)
+    geo.translate(-cx, -bb.min.y, -cz);
     archGeos[id] = geo;
   }));
   archMeshesReady = true;
@@ -208,16 +210,17 @@ function ensureArchInst() {
   for (const id of Object.keys(ts)) {
     if (archInst[id]) continue;
     const geo = archGeos[id] || boxGeo;
-    const isOpening = ts[id].key === "opening";
     const isWindow = ts[id].key === "window";
+    // Opening is a solid portal frame (void is empty space) — keep opaque.
+    // Window keeps slight transparency for the glass reading.
     const mat = new THREE.MeshStandardMaterial({
       color: ts[id].color,
-      roughness: isWindow ? 0.25 : 0.72,
-      metalness: isWindow ? 0.15 : 0.05,
+      roughness: isWindow ? 0.35 : 0.72,
+      metalness: isWindow ? 0.12 : 0.05,
       flatShading: false,
-      transparent: isOpening || isWindow,
-      opacity: isOpening ? 0.22 : isWindow ? 0.55 : 1,
-      depthWrite: !isOpening,
+      transparent: isWindow,
+      opacity: isWindow ? 0.85 : 1,
+      depthWrite: true,
     });
     archInst[id] = new THREE.InstancedMesh(geo, mat, SV_MAX);
     archInst[id].count = 0;
