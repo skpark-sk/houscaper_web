@@ -4,7 +4,7 @@
   "description": "",
   "main": "bmc-data.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node check-bmc.mjs && node check-animation.mjs && node check-index-architectural.mjs && node check-architectural-tiles.mjs && node --no-warnings check-architectural-runtime.mjs && node --no-warnings check-rhino-obj.mjs"
   },
   "keywords": [],
   "author": "",

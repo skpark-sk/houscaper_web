@@ -150,22 +150,25 @@ Canonical GH label IDs (architectural):
 
 > Note: `tilesets.js` maps **4 → opening**, **5 → window**. Some GH comments swap 4/5; trust the web file for the playable demo.
 
-### Web demo mapping (`tilesets.js` / `bmc-data.js`)
+### Current web mapping (`index.html`)
 
 | Web asset | Relation to `22.3dm` |
 |-----------|----------------------|
 | `bmc-data.js` | Surface BMC: 26 tiles + 256 binary lookup — **not** this architectural atlas |
-| `tilesets.js` → `surface1` / `surface2` | Surface brush modes only |
-| `tilesets.js` → `ffmm` | Architectural mode keyed to **`ffmm.3dm`** layer names (`Base_Modules`, …), `moduleSize` 0.9×0.9×0.54 **meters** |
-| **`22.3dm`** | **Not wired** as a `TILESETS` entry today |
+| `assets/architectural-tiles/manifest.json` | Rhino MCP export: **154 meshable cube-frame tiles / 80 typed signatures** |
+| `architectural-tiles.js` | Typed-corner signature, deterministic variants, horizontal rotation/mirror orbit lookup |
+| `rhino-obj.js` | Rhino metres/Z-up OBJ → Three.js unit-grid/Y-up conversion |
+| `index.html` | Default playable `22.3dm architectural` mode; base/floor/opening/window brushes |
 
 Practical takeaway for Houscaper play:
 
 - Shared **module size** with thesis / `ffmm`: 900×900×540 mm (= 0.9×0.9×0.54 m).
 - Shared **octant** size: 450×450×270 mm.
 - `22.3dm` is a **richer / older atlas** that still carries **foundation** geometry and a flatter `Modules` hierarchy.
-- The browser architectural brush currently mirrors **`ffmm`**, which intentionally **omits foundation (3)**.
-- To “play” `22` as-is in the web demo would need a new tileset entry (and likely different layer → brush mapping), not a drop-in swap of the `ffmm` key.
+- `Cube Frame` has 2856 curves = **238 ordered cages × 12 edges**. Material geometry is assigned by cage, normalized to its minimum corner, and exported without inventing replacement boxes.
+- 154 cages contain meshable BREP/extrusion geometry; rotation and reflection complete the playable horizontal orbit.
+- Opening has no dedicated vertex layer, so type 4 selects a compatible `Blank` variant when available and otherwise preserves the base topology.
+- Foundation objects are full cage helpers rather than corner markers; they are documented but not exposed as a brush until a reliable type-3 corner map is available.
 
 ---
 
@@ -180,7 +183,6 @@ Practical takeaway for Houscaper play:
 
 **Is not**
 
-- Not the web-wired architectural tileset (`ffmm` is)
 - Not a binary surface tileset (no 26-tile surface atlas)
 - Not a clean `Base_Modules` / `Floor_Modules` / `Opening_Modules` / `Window_Modules` split
 - Not empty of foundation (unlike `ffmm`)
@@ -200,7 +202,7 @@ Practical takeaway for Houscaper play:
 | Octants | `Modules::octant box` (490) | `OCTANT BOX::*` typed |
 | Cube frame | `Cube Frame` 2856 | `CUBE FRAME` 1680 |
 | Materials parent | `Material difference` | `MATERIAL` |
-| Web `tilesets.js` | Not referenced | `TILESETS.ffmm` |
+| Web integration | `index.html` default architectural atlas | Legacy `townscaper.html` / `TILESETS.ffmm` |
 
 ---
 

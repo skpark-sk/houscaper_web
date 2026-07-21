@@ -1,0 +1,20 @@
+# Houscaper tile from 22.3dm Cube Frame group 206
+# signature 00100111 variant 2
+g floor_1
+v 0.3 0 0.54
+v 0.3 0.3 0.54
+v 0 0 0.54
+v 0 0.3 0.54
+f 1 3 4 2
+g floor_2
+v 0 0.3 0.54
+v 0.3 0.3 0.54
+v 0 0.9 0.54
+v 0.3 0.9 0.54
+f 8 6 5 7
+g floor_3
+v 0.3 0.3 0.54
+v 0.3 0 0.54
+v 0.9 0.3 0.54
+v 0.9 0 0.54
+f 12 10 9 11

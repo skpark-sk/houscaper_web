@@ -1,0 +1,8 @@
+# Houscaper tile from 22.3dm Cube Frame group 86
+# signature 11110000 variant 2
+g arc_frame_1
+v 0 0 0.365
+v 0.9 0 0.365
+v 0 0.9 0.365
+v 0.9 0.9 0.365
+f 4 2 1 3
