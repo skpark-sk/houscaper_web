@@ -1,0 +1,41 @@
+{
+  "typeCounts": {
+    "LineCurve": 757,
+    "PolyCurve": 8,
+    "PolylineCurve": 954,
+    "NurbsCurve": 1765,
+    "Point": 653,
+    "Brep": 1258,
+    "Extrusion": 10
+  },
+  "byLayer": {
+    "Floor_Modules": {
+      "count": 154,
+      "types": {
+        "Brep": 138,
+        "PolylineCurve": 16
+      }
+    },
+    "Base_Modules": {
+      "count": 516,
+      "types": {
+        "Brep": 448,
+        "PolylineCurve": 68
+      }
+    },
+    "Window_Modules": {
+      "count": 39,
+      "types": {
+        "Brep": 33,
+        "PolylineCurve": 6
+      }
+    },
+    "Opening_Modules": {
+      "count": 24,
+      "types": {
+        "Brep": 18,
+        "PolylineCurve": 6
+      }
+    }
+  }
+}

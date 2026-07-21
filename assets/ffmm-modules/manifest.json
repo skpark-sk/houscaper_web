@@ -1,0 +1,9 @@
+{
+  "source": "ffmm.3dm",
+  "note": "MODULE shell + MATERIAL pieces inside module bbox",
+  "units": "Meters",
+  "moduleSize": {"x":0.9,"y":0.9,"z":0.54},
+  "modules": {
+
+  }
+}

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Houscaper — Townscaper</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  #hud {
+    position: fixed; top: 14px; left: 14px; z-index: 10;
+    font: 13px/1.5 system-ui, sans-serif; color: #e8e4dc;
+    background: rgba(18,22,30,.78); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 12px;
+    padding: 12px 16px; max-width: 320px; user-select: none;
+  }
+  #hud h1 { font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+  #hud .dim { color: #8a9aaa; font-size: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  button, select {
+    font: 12px system-ui, sans-serif; border-radius: 8px; border: 1px solid rgba(255,255,255,.14);
+    background: #2a3340; color: #e8e4dc; padding: 5px 10px; cursor: pointer;
+  }
+  button.active { background: #4a6a88; border-color: #7aa0c0; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; }
+  .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 3px; vertical-align: -1px; }
+  #stats { margin-top: 8px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 7px; font-size: 12px; color: #9ab0c0; }
+  #msg {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font: 13px system-ui, sans-serif; color: #fff;
+    background: rgba(160,60,50,.88); padding: 8px 16px; border-radius: 20px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap;
+  }
+  a.nav { color: #9ab0c0; font-size: 11px; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="hud">
+  <h1>Houscaper Townscaper</h1>
+  <div class="dim">L-click add · R-click remove · drag orbit</div>
+  <div class="row">
+    <select id="tileset"></select>
+  </div>
+  <div class="row" id="brushes" hidden></div>
+  <div class="legend" id="legend"></div>
+  <div id="stats"></div>
+  <div class="dim" style="margin-top:6px"><a class="nav" href="./index.html">classic</a> · <a class="nav" href="./tile-reference.html">tile ref</a></div>
+</div>
+<div id="msg"></div>
+
+<script src="./bmc-data.js"></script>
+<script src="./tilesets.js"></script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const VC = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+const EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+const bitOf = v => 1 << (7 - v);
+const { tiles: TILES, lookup: LOOKUP } = window.BMC;
+const SETS = window.TILESETS;
+
+let tilesetId = "ffmm";
+let brush = 1; // architectural label
+const voxels = new Map(); // key -> type (1 for surface modes)
+const key = (x,y,z) => `${x},${y},${z}`;
+const has = (x,y,z) => voxels.has(key(x,y,z));
+const BOUND = 18, HEIGHT = 12;
+const inBounds = (x,y,z) => Math.abs(x)<=BOUND && Math.abs(y)<=BOUND && z>=0 && z<HEIGHT;
+const toWorld = (x,y,z) => new THREE.Vector3(x, z, y);
+const bmc2w = (x,y,z) => [x, z, y];
+
+function cubeConfig(cx, cy, cz, extra = null) {
+  let cfg = 0;
+  for (let v = 0; v < 8; v++) {
+    const px = cx+VC[v][0], py = cy+VC[v][1], pz = cz+VC[v][2];
+    let occ = has(px, py, pz);
+    if (extra && extra.x===px && extra.y===py && extra.z===pz) occ = extra.value;
+    if (occ) cfg |= bitOf(v);
+  }
+  return cfg;
+}
+const cubesOf = (x,y,z) => VC.map(([dx,dy,dz]) => [x-dx, y-dy, z-dz]);
+function canToggle(x, y, z, value) {
+  for (const [cx,cy,cz] of cubesOf(x,y,z)) {
+    const cfg = cubeConfig(cx,cy,cz,{x,y,z,value});
+    if (cfg!==0 && cfg!==255 && LOOKUP[cfg].kind==="invalid") return false;
+  }
+  return true;
+}
+function cubeKind(cx,cy,cz) {
+  const e = LOOKUP[cubeConfig(cx,cy,cz)];
+  return e.kind === "tile" ? TILES[e.tile].kind : "none";
+}
+
+// ── scene ────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#1a1f2a");
+scene.fog = new THREE.FogExp2("#1a1f2a", 0.014);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 300);
+camera.position.set(14, 14, 16);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(2, 2, 2);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight("#5a7090", 0.55));
+const sun = new THREE.DirectionalLight("#fff5e0", 2.2);
+sun.position.set(12, 22, 10); scene.add(sun);
+scene.add(new THREE.GridHelper(36, 36, "#252d3a", "#202830"));
+
+const surfMat = new THREE.MeshStandardMaterial({
+  vertexColors: true, flatShading: true, roughness: 0.82, metalness: 0.04,
+});
+let surfMesh = null;
+const voxelGroup = new THREE.Group(); scene.add(voxelGroup);
+const boxGeo = new THREE.BoxGeometry(1,1,1);
+const pickMat = new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false });
+const archGroup = new THREE.Group(); scene.add(archGroup);
+const dummy = new THREE.Object3D();
+const SV_MAX = 40000;
+const archInst = {};
+
+function ensureArchInst() {
+  const ts = SETS.ffmm.types;
+  for (const id of Object.keys(ts)) {
+    if (archInst[id]) continue;
+    const mat = new THREE.MeshStandardMaterial({
+      color: ts[id].color, roughness: 0.78, flatShading: false,
+    });
+    archInst[id] = new THREE.InstancedMesh(boxGeo, mat, SV_MAX);
+    archInst[id].count = 0;
+    archGroup.add(archInst[id]);
+  }
+}
+
+function cubePoint(cx, cy, cz) {
+  const cfg = cubeConfig(cx, cy, cz);
+  const ts = SETS[tilesetId];
+  let n = 0, sx = 0, sy = 0, sz = 0;
+  for (const [a, b] of EDGES) {
+    if (((cfg >> (7 - a)) & 1) !== ((cfg >> (7 - b)) & 1)) {
+      let mx = (VC[a][0] + VC[b][0]) * 0.5;
+      let my = (VC[a][1] + VC[b][1]) * 0.5;
+      let mz = (VC[a][2] + VC[b][2]) * 0.5;
+      // surface2: pitch roofs down, lift floors toward cube top (thesis §3.2.3)
+      if (ts.roofPitch) {
+        const kind = cubeKind(cx, cy, cz);
+        if (kind === "roof") mz *= 0.55;
+        if (kind === "floor") mz = Math.min(1, mz + (ts.floorLift || 0));
+      }
+      sx += mx; sy += my; sz += mz; n++;
+    }
+  }
+  if (!n) return toWorld(cx + 0.5, cy + 0.5, cz + 0.5);
+  return toWorld(cx + sx / n, cy + sy / n, cz + sz / n);
+}
+
+function rebuildSurface() {
+  if (surfMesh) { scene.remove(surfMesh); surfMesh.geometry.dispose(); surfMesh = null; }
+  const ts = SETS[tilesetId];
+  const colorsMap = ts.colors;
+  if (!colorsMap) return;
+
+  const AXES = [[1,0,0],[0,1,0],[0,0,1]];
+  const positions = [], colors = [];
+  const seen = new Set();
+  const kindColor = k => new THREE.Color(colorsMap[k] || colorsMap.none);
+
+  for (const k of voxels.keys()) {
+    const [x,y,z] = k.split(",").map(Number);
+    for (const [ax,ay,az] of AXES) {
+      for (const dir of [1,-1]) {
+        const nx=x+dir*ax, ny=y+dir*ay, nz=z+dir*az;
+        if (has(nx,ny,nz)) continue;
+        const lk = `${Math.min(x,nx)},${Math.min(y,ny)},${Math.min(z,nz)}|${ax}${ay}${az}`;
+        if (seen.has(lk)) continue;
+        seen.add(lk);
+        const [b1,b2] = ax ? [[0,1,0],[0,0,1]] : ay ? [[1,0,0],[0,0,1]] : [[1,0,0],[0,1,0]];
+        const bx=Math.min(x,nx), by=Math.min(y,ny), bz=Math.min(z,nz);
+        const base=[ax?bx:x, ay?by:y, az?bz:z];
+        const corners=[[0,0],[1,0],[1,1],[0,1]].map(([s,t])=>[
+          base[0]-s*b1[0]-t*b2[0], base[1]-s*b1[1]-t*b2[1], base[2]-s*b1[2]-t*b2[2],
+        ]);
+        const pts=corners.map(([cx,cy,cz])=>cubePoint(cx,cy,cz));
+        const cols=corners.map(([cx,cy,cz])=>kindColor(cubeKind(cx,cy,cz)));
+        const outward=toWorld(nx,ny,nz).sub(toWorld(x,y,z));
+        const norm=new THREE.Vector3().subVectors(pts[1],pts[0]).cross(new THREE.Vector3().subVectors(pts[2],pts[0]));
+        const order=norm.dot(outward)>=0 ? [0,1,2,0,2,3] : [0,2,1,0,3,2];
+        for (const i of order) {
+          positions.push(pts[i].x, pts[i].y, pts[i].z);
+          colors.push(cols[i].r, cols[i].g, cols[i].b);
+        }
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  surfMesh = new THREE.Mesh(geo, surfMat);
+  scene.add(surfMesh);
+}
+
+function rebuildArchitectural() {
+  ensureArchInst();
+  for (const id of Object.keys(archInst)) archInst[id].count = 0;
+  const svSize = 0.46;
+  const seen = new Set();
+
+  for (const [k, type] of voxels) {
+    const [bx,by,bz] = k.split(",").map(Number);
+    for (let dv = 0; dv < 8; dv++) {
+      const cx = bx - VC[dv][0], cy = by - VC[dv][1], cz = bz - VC[dv][2];
+      const ck = `${cx},${cy},${cz}`;
+      if (seen.has(ck)) continue;
+      seen.add(ck);
+      const cfg = cubeConfig(cx,cy,cz);
+      if (cfg === 0 || cfg === 255) continue;
+      if (LOOKUP[cfg].kind !== "tile") continue;
+
+      for (let v = 0; v < 8; v++) {
+        if (!(cfg & bitOf(v))) continue;
+        const px = cx + VC[v][0], py = cy + VC[v][1], pz = cz + VC[v][2];
+        const t = voxels.get(key(px,py,pz));
+        if (!t || !archInst[t]) continue;
+        const [svx,svy,svz] = [VC[v][0]*0.5+0.25, VC[v][1]*0.5+0.25, VC[v][2]*0.5+0.25];
+        const [wx,wy,wz] = bmc2w(cx+svx, cy+svy, cz+svz);
+        dummy.position.set(wx,wy,wz);
+        dummy.scale.setScalar(svSize);
+        dummy.updateMatrix();
+        const inst = archInst[t];
+        inst.setMatrixAt(inst.count++, dummy.matrix);
+      }
+    }
+  }
+  for (const id of Object.keys(archInst)) archInst[id].instanceMatrix.needsUpdate = true;
+}
+
+function rebuildVoxelBoxes() {
+  voxelGroup.clear();
+  for (const k of voxels.keys()) {
+    const [x,y,z] = k.split(",").map(Number);
+    const m = new THREE.Mesh(boxGeo, pickMat);
+    m.position.copy(toWorld(x+0.5, y+0.5, z+0.5));
+    m.userData.voxel = [x,y,z];
+    voxelGroup.add(m);
+  }
+}
+
+function updateStats() {
+  const ts = SETS[tilesetId];
+  let text = `voxels ${voxels.size}`;
+  if (ts.mode === "architectural") {
+    const cnt = { base:0, floor:0, window:0, opening:0 };
+    for (const t of voxels.values()) {
+      const meta = ts.types[t];
+      if (meta) cnt[meta.key]++;
+    }
+    text += ` · base ${cnt.base} / floor ${cnt.floor} / window ${cnt.window} / opening ${cnt.opening}`;
+  } else {
+    const cnt = { roof:0, wall:0, floor:0, extra:0 };
+    const seen = new Set();
+    for (const k of voxels.keys()) {
+      const [x,y,z] = k.split(",").map(Number);
+      for (const [cx,cy,cz] of cubesOf(x,y,z)) {
+        const ck = key(cx,cy,cz);
+        if (seen.has(ck)) continue;
+        seen.add(ck);
+        const kk = cubeKind(cx,cy,cz);
+        if (kk in cnt) cnt[kk]++;
+      }
+    }
+    text += ` · roof ${cnt.roof} / wall ${cnt.wall} / floor ${cnt.floor} / extra ${cnt.extra}`;
+  }
+  document.getElementById("stats").textContent = text;
+}
+
+function setRenderMode() {
+  const ts = SETS[tilesetId];
+  const arch = ts.mode === "architectural";
+  archGroup.visible = arch;
+  if (surfMesh) surfMesh.visible = !arch;
+  document.getElementById("brushes").hidden = !arch;
+}
+
+function refresh() {
+  setRenderMode();
+  if (SETS[tilesetId].mode === "architectural") {
+    if (surfMesh) { scene.remove(surfMesh); surfMesh.geometry.dispose(); surfMesh = null; }
+    rebuildArchitectural();
+  } else {
+    for (const id of Object.keys(archInst)) archInst[id].count = 0;
+    rebuildSurface();
+  }
+  rebuildVoxelBoxes();
+  updateStats();
+}
+
+function flash(msg) {
+  const el = document.getElementById("msg");
+  el.textContent = msg; el.style.opacity = "1";
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => (el.style.opacity = "0"), 1400);
+}
+
+function setVoxel(x, y, z, value) {
+  if (!inBounds(x,y,z)) return flash("Out of bounds");
+  const k = key(x,y,z);
+  if (value) {
+    if (voxels.has(k) && SETS[tilesetId].mode === "architectural") {
+      voxels.set(k, brush); refresh(); return;
+    }
+    if (voxels.has(k)) return;
+    if (!canToggle(x,y,z,true)) return flash("Surface-to-surface only (no point/edge)");
+    voxels.set(k, SETS[tilesetId].mode === "architectural" ? brush : 1);
+  } else {
+    if (!voxels.has(k)) return;
+    if (!canToggle(x,y,z,false)) return flash("Surface-to-surface only (no point/edge)");
+    voxels.delete(k);
+  }
+  refresh();
+}
+
+// ── UI ───────────────────────────────────────────────────
+const sel = document.getElementById("tileset");
+for (const ts of Object.values(SETS)) {
+  const o = document.createElement("option");
+  o.value = ts.id; o.textContent = ts.label;
+  sel.appendChild(o);
+}
+sel.value = tilesetId;
+sel.addEventListener("change", () => {
+  tilesetId = sel.value;
+  // convert types when switching to surface
+  if (SETS[tilesetId].mode === "surface") {
+    for (const k of [...voxels.keys()]) voxels.set(k, 1);
+  }
+  renderLegend();
+  renderBrushes();
+  refresh();
+});
+
+function renderLegend() {
+  const ts = SETS[tilesetId];
+  const el = document.getElementById("legend");
+  el.innerHTML = "";
+  if (ts.mode === "architectural") {
+    for (const t of Object.values(ts.types)) {
+      el.innerHTML += `<span><span class="sw" style="background:${t.color}"></span>${t.key}</span>`;
+    }
+  } else {
+    for (const [k,c] of Object.entries(ts.colors)) {
+      if (k === "none") continue;
+      el.innerHTML += `<span><span class="sw" style="background:${c}"></span>${k}</span>`;
+    }
+  }
+}
+
+function renderBrushes() {
+  const box = document.getElementById("brushes");
+  box.innerHTML = "";
+  const ts = SETS.ffmm;
+  for (const [id, meta] of Object.entries(ts.types)) {
+    const b = document.createElement("button");
+    b.textContent = meta.key;
+    b.dataset.id = id;
+    if (+id === brush) b.classList.add("active");
+    b.addEventListener("click", () => {
+      brush = +id;
+      [...box.children].forEach(c => c.classList.toggle("active", +c.dataset.id === brush));
+    });
+    box.appendChild(b);
+  }
+}
+
+// ── interaction ──────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let downAt = null;
+const groundPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(2*BOUND, 2*BOUND).rotateX(-Math.PI/2),
+  new THREE.MeshBasicMaterial({ visible: false }),
+);
+scene.add(groundPlane);
+
+renderer.domElement.addEventListener("contextmenu", e => e.preventDefault());
+renderer.domElement.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY, e.button]; });
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!downAt) return;
+  const [sx,sy,btn] = downAt; downAt = null;
+  if (Math.hypot(e.clientX-sx, e.clientY-sy) > 5) return;
+  pointer.set((e.clientX/innerWidth)*2-1, -(e.clientY/innerHeight)*2+1);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(voxelGroup.children)[0];
+  if (hit) {
+    const [x,y,z] = hit.object.userData.voxel;
+    if (btn === 2) return setVoxel(x,y,z,false);
+    const n = hit.face.normal;
+    return setVoxel(x+Math.round(n.x), y+Math.round(n.z), z+Math.round(n.y), true);
+  }
+  if (btn === 0) {
+    const gh = raycaster.intersectObject(groundPlane)[0];
+    if (gh) setVoxel(Math.floor(gh.point.x), Math.floor(gh.point.z), 0, true);
+  }
+});
+
+addEventListener("resize", () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// starter massing with mixed ffmm types
+for (let x = 0; x <= 3; x++)
+  for (let y = 0; y <= 2; y++)
+    for (let z = 0; z <= 1; z++) voxels.set(key(x,y,z), 1);
+for (let x = 0; x <= 3; x++) voxels.set(key(x,1,2), 1);
+voxels.set(key(1,0,1), 5);
+voxels.set(key(2,0,1), 5);
+voxels.set(key(3,1,0), 4);
+voxels.set(key(0,1,1), 2);
+
+renderLegend();
+renderBrushes();
+refresh();
+
+window.voxels = voxels;
+window.setVoxel = setVoxel;
+window.refresh = refresh;
+window.SETS = SETS;
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
