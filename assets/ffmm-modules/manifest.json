@@ -1,9 +1,24 @@
 {
-  "source": "ffmm.3dm",
-  "note": "MODULE shell + MATERIAL pieces inside module bbox",
+  "source": "22.3dm Arc_Frame clusters (ffmm.3dm MODULE::* layers are 6-face boxes only; detail lives in MATERIAL / Material difference)",
   "units": "Meters",
-  "moduleSize": {"x":0.9,"y":0.9,"z":0.54},
+  "moduleSize": { "x": 0.9, "y": 0.9, "z": 0.54 },
+  "rhinoUp": "Z",
   "modules": {
-
+    "base": [
+      { "file": "base_0.obj", "verts": 46, "faces": 56 },
+      { "file": "base_1.obj", "verts": 46, "faces": 56 }
+    ],
+    "floor": [
+      { "file": "floor_0.obj", "verts": 19, "faces": 18 },
+      { "file": "floor_1.obj", "verts": 19, "faces": 18 }
+    ],
+    "opening": [
+      { "file": "opening_0.obj", "verts": 10, "faces": 5 },
+      { "file": "opening_1.obj", "verts": 10, "faces": 5 }
+    ],
+    "window": [
+      { "file": "window_0.obj", "verts": 46, "faces": 37 },
+      { "file": "window_1.obj", "verts": 46, "faces": 37 }
+    ]
   }
 }

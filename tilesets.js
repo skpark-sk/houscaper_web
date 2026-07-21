@@ -36,16 +36,17 @@ window.TILESETS = {
   ffmm: {
     id: "ffmm",
     label: "ffmm architectural",
-    thesis: "§3.3 + ffmm.3dm MODULE::*",
+    thesis: "§3.3 + ffmm.3dm MODULE::* / 22.3dm Material difference",
     mode: "architectural",
     // Labels from revised tile2.gh interpolate(..., id)
     types: {
-      1: { key: "base",    layer: "Base_Modules",    color: "#8a8070" },
-      2: { key: "floor",   layer: "Floor_Modules",   color: "#3d8f4a" },
-      4: { key: "opening", layer: "Opening_Modules", color: "#c8c064" },
-      5: { key: "window",  layer: "Window_Modules",  color: "#4050c8" },
+      1: { key: "base",    layer: "Base_Modules",    color: "#8a8070", mesh: "base_0.obj" },
+      2: { key: "floor",   layer: "Floor_Modules",   color: "#3d8f4a", mesh: "floor_0.obj" },
+      4: { key: "opening", layer: "Opening_Modules", color: "#c8c064", mesh: "opening_0.obj" },
+      5: { key: "window",  layer: "Window_Modules",  color: "#4050c8", mesh: "window_0.obj" },
     },
     // Foundation (3) exists in other .3dm / GH but not in ffmm.3dm
     moduleSize: { x: 0.9, y: 0.9, z: 0.54 },
+    meshBase: "./assets/ffmm-modules/",
   },
 };
