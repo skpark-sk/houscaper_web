@@ -13,7 +13,7 @@ f 1 2 3 4
 assert.deepEqual([...groups.keys()], ["arc_frame"]);
 const positions = [...groups.get("arc_frame")];
 assert.equal(positions.length, 18, "quad should triangulate to two faces");
-const expected = [0, 0, 0, 1, 0, 0, 1, 0.6, -1];
+const expected = [0, 0, 0, 1, 0, 0, 1, 0.6, 1];
 positions.slice(0, 9).forEach((value, index) => {
   assert.ok(
     Math.abs(value - expected[index]) < 1e-9,

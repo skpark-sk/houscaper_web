@@ -61,7 +61,8 @@ export function pickArchitecturalTile(index, signature, cx, cy, cz) {
   return variants.length ? pickFromVariants(variants, cx, cy, cz) : null;
 }
 
-const ROTATE_ONCE = [3, 0, 1, 2, 7, 4, 5, 6];
+// +90° around Three Y with BMC→Three (x,z,y): corner 0→3→2→1→0.
+const ROTATE_ONCE = [1, 2, 3, 0, 5, 6, 7, 4];
 const MIRROR_X = [1, 0, 3, 2, 5, 4, 7, 6];
 
 function permuteSignature(signature, permutation) {
@@ -99,6 +100,20 @@ export function buildTileOrbitIndex(manifest) {
   return orbitIndex;
 }
 
+function pickOrbitCandidate(candidates, cx, cy, cz) {
+  // Occupancy-symmetric signatures list both a transform and its mirror/rotate
+  // twin; mesh elbows are not symmetric, so hash-picking flips rafters. Prefer
+  // unmirrored then min rotation; hash only among leftover true variants.
+  const unmirrored = candidates.filter((candidate) => !candidate.mirrored);
+  const pool = unmirrored.length ? unmirrored : candidates;
+  const minRotation = Math.min(...pool.map((candidate) => candidate.rotation));
+  const preferred = pool.filter((candidate) => candidate.rotation === minRotation);
+  const hash = Math.abs(
+    Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(cz, 83492791)
+  );
+  return preferred[hash % preferred.length];
+}
+
 export function resolveArchitecturalTile(orbitIndex, signature, cx, cy, cz) {
   const role = signature.includes("4")
     ? "blank"
@@ -115,8 +130,5 @@ export function resolveArchitecturalTile(orbitIndex, signature, cx, cy, cz) {
   );
   const candidates = exact.length ? exact : preferred.length ? preferred : structural;
   if (!candidates.length) return null;
-  const hash = Math.abs(
-    Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(cz, 83492791)
-  );
-  return candidates[hash % candidates.length];
+  return pickOrbitCandidate(candidates, cx, cy, cz);
 }

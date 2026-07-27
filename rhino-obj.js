@@ -31,7 +31,9 @@ export function parseRhinoObj(text, scale = DEFAULT_SCALE) {
     const positions = output();
     for (let i = 1; i < face.length - 1; i++) {
       for (const [x, y, z] of [face[0], face[i], face[i + 1]]) {
-        positions.push(x * scale, z * scale, -y * scale);
+        // Match engine toWorld: BMC (x,y,z) → Three (x,z,y). Using -y here
+        // flips tiles inside the cell so rafters lean opposite the voxel mass.
+        positions.push(x * scale, z * scale, y * scale);
       }
     }
   }

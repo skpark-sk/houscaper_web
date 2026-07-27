@@ -1,21 +1,16 @@
 /**
- * Minimal check for the tile transition curve embedded in index.html.
+ * Minimal check for the tile transition curve in the client engine.
  * Run: node check-animation.mjs
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-const moduleStart = '<script type="module">';
-const moduleSource = html.slice(
-  html.indexOf(moduleStart) + moduleStart.length,
-  html.indexOf("</script>", html.indexOf(moduleStart)),
-);
-if (vm.SourceTextModule) new vm.SourceTextModule(moduleSource);
+const engine = readFileSync(new URL("./houscaper-engine.js", import.meta.url), "utf8");
+if (vm.SourceTextModule) new vm.SourceTextModule(engine);
 
-const source = html.match(/function tileMotion\([\s\S]*?\n\}/)?.[0];
-assert(source, "index.html exposes the tileMotion curve");
+const source = engine.match(/function tileMotion\([\s\S]*?\n  \}/)?.[0];
+assert(source, "the Next.js engine exposes the tileMotion curve");
 
 const context = { reducedMotion: { matches: false } };
 vm.runInNewContext(`${source}; this.tileMotion = tileMotion;`, context);

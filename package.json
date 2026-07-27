@@ -1,15 +1,26 @@
 {
-  "name": "demo",
+  "name": "houscaper-web",
   "version": "1.0.0",
-  "description": "",
-  "main": "bmc-data.js",
+  "private": true,
+  "type": "module",
+  "description": "Geometry-first Townscaper-style Rhino tile playground",
   "scripts": {
-    "test": "node check-bmc.mjs && node check-animation.mjs && node check-index-architectural.mjs && node check-architectural-tiles.mjs && node --no-warnings check-architectural-runtime.mjs && node --no-warnings check-rhino-obj.mjs"
+    "build:assets": "node build-family-assets.mjs",
+    "predev": "npm run build:assets",
+    "dev": "next dev",
+    "prebuild": "npm run build:assets",
+    "build": "next build",
+    "start": "next start",
+    "test:browser": "node check-browser.mjs",
+    "test": "node check-bmc.mjs && node check-animation.mjs && node check-architectural-tiles.mjs && node check-architectural-runtime.mjs && node check-rhino-obj.mjs && node check-tile-families.mjs && node check-family-assets.mjs && node check-next-app.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "next": "^16.2.11",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "three": "^0.160.0"
   }
 }

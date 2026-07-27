@@ -1,3 +1,8 @@
 node_modules/
+.next/
+out/
 .vercel
 .env*
+.browser-check-*/
+houscaper-next.png
+public/assets/
