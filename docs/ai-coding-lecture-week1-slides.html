@@ -61,11 +61,11 @@ body{
 a{color:inherit}
 
 /* ---------- stage fitting ---------- */
-#wrap{position:fixed;inset:0;display:grid;place-items:center;padding:16px}
+#wrap{position:fixed;inset:0;overflow:hidden}
 #stage{
-  width:1280px;height:720px;flex:none;
-  transform-origin:center center;
-  position:relative;
+  width:1280px;height:720px;
+  transform-origin:0 0;
+  position:absolute;left:0;top:0;
   background:var(--stage);
   box-shadow:var(--shadow);
   display:grid;
@@ -675,8 +675,11 @@ resp = client.chat.completions.create(
   };
 
   function fit(){
-    var s = Math.min((wrap.clientWidth - 32) / 1280, (wrap.clientHeight - 32) / 720);
-    stage.style.transform = 'scale(' + s + ')';
+    var W = wrap.clientWidth, H = wrap.clientHeight;
+    var pad = W < 600 ? 8 : 16;
+    var s = Math.min((W - pad * 2) / 1280, (H - pad * 2) / 720);
+    var x = (W - 1280 * s) / 2, y = (H - 720 * s) / 2;
+    stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
   }
 
   function pad(n){ return (n < 10 ? '0' : '') + n; }
@@ -736,7 +739,18 @@ resp = client.chat.completions.create(
     else if (e.key === 'End'){ show(slides.length - 1); }
   });
 
+  // phone: swipe to advance (the footer arrows shrink with the stage)
+  var tx = 0, ty = 0;
+  wrap.addEventListener('touchstart', function(e){
+    tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY;
+  }, { passive: true });
+  wrap.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) show(dx < 0 ? cur + 1 : cur - 1);
+  }, { passive: true });
+
   window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
   fit();
 
   var start = parseInt((location.hash || '').replace('#', ''), 10);
