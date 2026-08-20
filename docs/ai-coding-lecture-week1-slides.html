@@ -1,0 +1,759 @@
+<title>AI 코딩 1주차 환경 세팅</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --paper:#E4EAEB;
+  --stage:#F7F9F9;
+  --panel:#EDF2F2;
+  --ink:#101F26;
+  --ink-2:#3C5058;
+  --ink-3:#788C93;
+  --rule:#C6D0D3;
+  --rule-soft:#DDE4E5;
+  --accent:#C0491C;
+  --accent-wash:rgba(192,73,28,.10);
+  --on-accent:#FDF6F3;
+  --shadow:0 1px 0 rgba(16,31,38,.06), 0 18px 50px -24px rgba(16,31,38,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#081013;
+    --stage:#101E23;
+    --panel:#16272D;
+    --ink:#E8EFF0;
+    --ink-2:#A8BCC1;
+    --ink-3:#6F878E;
+    --rule:#283F47;
+    --rule-soft:#1D3138;
+    --accent:#F0784A;
+    --accent-wash:rgba(240,120,74,.13);
+    --on-accent:#122126;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 18px 50px -24px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#081013;
+  --stage:#101E23;
+  --panel:#16272D;
+  --ink:#E8EFF0;
+  --ink-2:#A8BCC1;
+  --ink-3:#6F878E;
+  --rule:#283F47;
+  --rule-soft:#1D3138;
+  --accent:#F0784A;
+  --accent-wash:rgba(240,120,74,.13);
+  --on-accent:#122126;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 18px 50px -24px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans KR","Gothic A1",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+a{color:inherit}
+
+/* ---------- stage fitting ---------- */
+#wrap{position:fixed;inset:0;overflow:hidden}
+#stage{
+  width:1280px;height:720px;
+  transform-origin:0 0;
+  position:absolute;left:0;top:0;
+  background:var(--stage);
+  box-shadow:var(--shadow);
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  overflow:hidden;
+}
+
+/* ---------- frame chrome ---------- */
+.bar{display:flex;align-items:center;gap:16px;padding:22px 56px 14px}
+.bar.foot{padding:12px 56px 20px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13px;letter-spacing:.05em;
+  color:var(--ink-3);
+}
+.eyebrow .on{color:var(--accent)}
+.count{
+  margin-left:auto;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13px;letter-spacing:.04em;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;
+}
+.hair{height:1px;background:var(--rule);margin:0 56px}
+
+/* time-proportional progress: widths encode 60 / 75 / 45 minutes */
+.prog{display:flex;gap:6px;flex:1;align-items:center}
+.seg{height:3px;background:var(--rule-soft);position:relative;overflow:hidden}
+.seg[data-min="60"]{flex:60}
+.seg[data-min="75"]{flex:75}
+.seg[data-min="45"]{flex:45}
+.seg i{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent);transition:width .3s ease}
+.foot-label{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;letter-spacing:.04em;color:var(--ink-3)}
+.nav{display:flex;gap:6px}
+.nav button{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  width:30px;height:26px;line-height:1;
+  background:transparent;color:var(--ink-3);
+  border:1px solid var(--rule);cursor:pointer;font-size:13px;
+  transition:color .15s,border-color .15s;
+}
+.nav button:hover{color:var(--accent);border-color:var(--accent)}
+.nav button:focus-visible,#idxBtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#idxBtn{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;letter-spacing:.04em;
+  background:transparent;border:1px solid var(--rule);color:var(--ink-3);
+  padding:5px 10px;cursor:pointer;
+}
+#idxBtn:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ---------- slides ---------- */
+.body{position:relative}
+.slide{
+  position:absolute;inset:0;
+  padding:34px 56px 18px;
+  opacity:0;visibility:hidden;
+  transition:opacity .28s ease;
+  display:flex;flex-direction:column;gap:22px;
+}
+.slide.is-active{opacity:1;visibility:visible}
+/* closing takeaway sits on the bottom rule of every content slide */
+.slide > p:last-child{
+  margin-top:auto;padding-top:16px;border-top:1px solid var(--rule-soft);
+}
+
+h1,h2,h3{margin:0;text-wrap:balance;font-family:"Gothic A1","IBM Plex Sans KR",sans-serif}
+h2.title{font-size:50px;font-weight:900;letter-spacing:-.02em;line-height:1.12}
+h3.sub{font-size:21px;font-weight:500;color:var(--ink-2);line-height:1.5}
+p{margin:0;font-size:21px;line-height:1.62;color:var(--ink-2)}
+strong{color:var(--ink);font-weight:600}
+.lead{font-size:24px;color:var(--ink)}
+
+.kicker{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13px;letter-spacing:.07em;color:var(--accent);
+}
+
+/* cover */
+.cover{justify-content:center;gap:0}
+.cover .rule{width:88px;height:4px;background:var(--accent);margin-bottom:30px}
+.cover h1{font-size:82px;font-weight:900;letter-spacing:-.035em;line-height:1.04}
+.cover .tag{font-size:26px;color:var(--ink-2);margin-top:20px;font-weight:500}
+.cover .meta{display:flex;gap:28px;margin-top:46px;flex-wrap:wrap}
+.cover .meta span{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:14px;letter-spacing:.02em;
+  color:var(--ink-3);border-left:1px solid var(--rule);padding-left:12px;
+}
+.cover .meta .hint{margin-left:auto;border-left:0;padding-left:0;color:var(--ink-3);opacity:.75}
+
+/* part divider */
+.divider{justify-content:center;gap:0}
+.divider .num{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:15px;letter-spacing:.18em;color:var(--accent);margin-bottom:18px;
+}
+.divider h2{font-size:88px;font-weight:900;letter-spacing:-.035em;line-height:1}
+.divider .mins{
+  margin-top:24px;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:16px;color:var(--ink-3);letter-spacing:.08em;
+}
+.divider ul{margin:34px 0 0;padding:0;list-style:none;display:flex;gap:40px;flex-wrap:wrap}
+.divider li{font-size:19px;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:12px;max-width:280px}
+
+/* generic table */
+table{border-collapse:collapse;width:100%;font-size:19px}
+th{
+  text-align:left;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:12px;letter-spacing:.05em;color:var(--ink-3);
+  font-weight:500;padding:0 16px 10px 0;border-bottom:1px solid var(--rule);
+}
+td{padding:14px 16px 14px 0;border-bottom:1px solid var(--rule-soft);color:var(--ink-2);vertical-align:top;line-height:1.5}
+td.k{color:var(--ink);font-weight:600;white-space:nowrap}
+td .u{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:15px;color:var(--ink-3)}
+.pill{
+  display:inline-block;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:12px;letter-spacing:.02em;padding:3px 8px;white-space:nowrap;
+  background:var(--accent-wash);color:var(--accent);
+}
+.pill.mute{background:transparent;color:var(--ink-3);border:1px solid var(--rule)}
+
+/* card rows */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.card{border-top:2px solid var(--ink);padding:16px 18px 20px;background:var(--panel);display:flex;flex-direction:column;gap:10px}
+.card.hot{border-top-color:var(--accent)}
+.card h3{font-size:23px;font-weight:700;letter-spacing:-.01em}
+.card p{font-size:17px;line-height:1.55}
+.card .u{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:14px;color:var(--ink-3);margin-top:auto;word-break:break-all}
+
+/* numbered steps — real sequence */
+ol.steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0}
+ol.steps li{
+  display:grid;grid-template-columns:56px 1fr;gap:18px;align-items:baseline;
+  padding:15px 0;border-bottom:1px solid var(--rule-soft);
+}
+ol.steps li:last-child{border-bottom:0}
+ol.steps b{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:14px;font-weight:500;
+  color:var(--accent);letter-spacing:.08em;
+}
+ol.steps span{font-size:21px;color:var(--ink-2);line-height:1.5}
+ol.steps span em{font-style:normal;color:var(--ink);font-weight:600}
+
+ul.bullets{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:16px}
+ul.bullets li{padding-left:24px;position:relative;font-size:21px;line-height:1.55;color:var(--ink-2)}
+ul.bullets li::before{content:"";position:absolute;left:0;top:13px;width:10px;height:1px;background:var(--accent)}
+
+/* code */
+pre{
+  margin:0;background:var(--panel);border-left:2px solid var(--rule);
+  padding:18px 22px;overflow-x:auto;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:16px;line-height:1.75;
+  color:var(--ink-2);
+}
+pre .c{color:var(--ink-3)}
+pre .hl{color:var(--accent);font-weight:500}
+pre b{color:var(--ink);font-weight:600}
+
+/* split layouts */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+.split.wide-left{grid-template-columns:1.15fr .85fr}
+.stack{display:flex;flex-direction:column;gap:18px}
+
+/* callout */
+.callout{
+  border-left:3px solid var(--accent);background:var(--accent-wash);
+  padding:20px 24px;font-size:21px;line-height:1.55;color:var(--ink);
+}
+.callout .h{
+  display:block;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:12px;letter-spacing:.06em;color:var(--accent);margin-bottom:8px;
+}
+.statement{font-size:44px;font-weight:900;letter-spacing:-.025em;line-height:1.24;font-family:"Gothic A1",sans-serif}
+.statement .a{color:var(--accent)}
+
+/* checklist */
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:8px 40px}
+.checks div{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:17px;line-height:1.9;
+  color:var(--ink-2);border-bottom:1px dotted var(--rule);padding-bottom:2px;
+}
+.checks div::before{content:"[ ]  ";color:var(--accent)}
+
+/* flow diagram */
+.flow{display:flex;align-items:stretch;gap:0;width:100%}
+.flow .n{
+  flex:1;background:var(--panel);border-top:2px solid var(--rule);
+  padding:16px 18px;display:flex;flex-direction:column;gap:6px;
+}
+.flow .n b{font-size:19px;font-weight:600;color:var(--ink)}
+.flow .n span{font-size:15px;color:var(--ink-3);line-height:1.45}
+.flow .n.mid{border-top-color:var(--accent)}
+.flow .arrow{
+  flex:none;width:52px;display:grid;place-items:center;color:var(--accent);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:18px;
+}
+
+/* index overlay */
+#idx{
+  position:fixed;inset:0;background:var(--paper);z-index:20;
+  display:none;padding:48px 60px;overflow-y:auto;
+}
+#idx.open{display:block}
+#idx h4{
+  margin:0 0 24px;font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:13px;letter-spacing:.06em;color:var(--ink-3);font-weight:500;
+}
+#idx ol{margin:0;padding:0;list-style:none;columns:2;column-gap:56px}
+#idx li{break-inside:avoid;margin-bottom:2px}
+#idx button{
+  width:100%;text-align:left;background:transparent;border:0;cursor:pointer;
+  display:flex;gap:16px;align-items:baseline;padding:8px 6px;
+  border-bottom:1px solid var(--rule-soft);color:var(--ink-2);
+  font-family:"IBM Plex Sans KR",sans-serif;font-size:17px;
+}
+#idx button:hover,#idx button:focus-visible{color:var(--accent);outline:none;background:var(--accent-wash)}
+#idx button i{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-style:normal;
+  font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums;
+}
+#idx button.cur{color:var(--accent);font-weight:600}
+
+@media (prefers-reduced-motion: reduce){
+  .slide,.seg i{transition:none}
+}
+</style>
+
+<div id="wrap">
+  <div id="stage">
+
+    <header>
+      <div class="bar">
+        <span class="eyebrow" id="eyebrow">바이브 코딩 · AI 코딩</span>
+        <span class="count" id="count">01 / 18</span>
+      </div>
+      <div class="hair"></div>
+    </header>
+
+    <div class="body">
+
+      <!-- 1 -->
+      <section class="slide cover" data-part="0" data-title="표지">
+        <div class="rule"></div>
+        <h1>1주차<br>환경 세팅</h1>
+        <div class="tag">바이브 코딩 / AI 코딩 입문 · 3시간</div>
+        <div class="meta">
+          <span>도구 설치</span>
+          <span>무료 모델 연결</span>
+          <span>MCP 연결</span>
+          <span class="hint">→ 넘기기 · O 목차</span>
+        </div>
+      </section>
+
+      <!-- 2 -->
+      <section class="slide" data-part="0" data-title="오늘의 3시간">
+        <div class="kicker">오늘의 3시간</div>
+        <h2 class="title">설치하고, 연결하고, 확인한다</h2>
+        <div class="cards">
+          <div class="card">
+            <h3>1교시 · 환경 준비</h3>
+            <p>VS Code · Node.js · Git 설치. API 키가 무엇이고 왜 감춰야 하는지.</p>
+            <div class="u">60 MIN</div>
+          </div>
+          <div class="card hot">
+            <h3>2교시 · 무료 모델 연결</h3>
+            <p>NVIDIA · Gemini 무료 키 발급, 확장에 물리기, 키 교체 실습.</p>
+            <div class="u">75 MIN</div>
+          </div>
+          <div class="card">
+            <h3>3교시 · MCP + 예습</h3>
+            <p>MCP 서버 1개 연결. 다음 주 지도 실습용 인증키 미리 신청.</p>
+            <div class="u">45 MIN</div>
+          </div>
+        </div>
+        <p>오늘은 코드를 많이 쓰지 않습니다. <strong>다음 주부터 계속 쓸 작업대를 만드는 시간</strong>입니다.</p>
+      </section>
+
+      <!-- 3 -->
+      <section class="slide" data-part="0" data-title="도구 선정 배경">
+        <div class="kicker">도구 선정 배경</div>
+        <h2 class="title">왜 VS Code + Roo Code 인가</h2>
+        <table>
+          <tr><th>도구</th><th>이 강의에서의 위치</th><th>이유</th></tr>
+          <tr>
+            <td class="k">Cursor</td>
+            <td><span class="pill mute">강사 메인 · 학생 서브</span></td>
+            <td>무료 한도가 금방 소진된다. 외부 키를 넣어도 탭 자동완성 같은 핵심 기능은 자체 크레딧에 묶여 있다.</td>
+          </tr>
+          <tr>
+            <td class="k">VS Code + Roo Code / Cline</td>
+            <td><span class="pill">학생 메인 권장</span></td>
+            <td>애초에 BYOK(본인 키 사용) 구조라 한도 제약이 없다. MCP 연결도 GUI로 설정할 수 있다.</td>
+          </tr>
+          <tr>
+            <td class="k">Claude Code</td>
+            <td><span class="pill mute">중급 이후</span></td>
+            <td>터미널 기반이라 MCP 설정이 처음엔 불편하다.</td>
+          </tr>
+          <tr>
+            <td class="k">Orca (ADE)</td>
+            <td><span class="pill mute">이번 강의 제외</span></td>
+            <td>여러 에이전트를 깃 워크트리에 병렬로 굴리는 도구. 입문자에겐 과하다.</td>
+          </tr>
+      </table>
+      <p>도구는 계속 바뀝니다. <strong>본인 키를 자유롭게 꽂을 수 있는 구조</strong>인지가 선택 기준입니다.</p>
+      </section>
+
+      <!-- 4 -->
+      <section class="slide" data-part="0" data-title="핵심 전략">
+        <div class="kicker">핵심 전략</div>
+        <div class="split wide-left">
+          <div class="stack">
+            <div class="statement">무료 키를 <span class="a">여러 개</span> 발급받아 두고,<br>한도가 떨어지면 <span class="a">갈아끼운다.</span></div>
+            <p>키를 바꿔 끼우는 이 과정 자체가 좋은 실습 소재입니다. 오늘 두 번 해봅니다.</p>
+          </div>
+          <ul class="bullets">
+            <li>키는 <strong>사람마다 따로</strong> 발급합니다. 강사 키를 공유하지 않습니다.</li>
+            <li>한도가 끊기는 건 사고가 아니라 <strong>예정된 일</strong>입니다.</li>
+            <li>도구가 아니라 <strong>연결 방식</strong>을 배웁니다. 제공처가 바뀌어도 절차는 같습니다.</li>
+          </ul>
+              </div>
+      <p>오늘 키를 <strong>두 곳에서</strong> 발급받는 이유입니다. 하나가 막혀도 실습이 멈추지 않습니다.</p>
+      </section>
+
+      <!-- 5 -->
+      <section class="slide divider" data-part="1" data-title="1교시 · 환경 준비">
+        <div class="num">1교시</div>
+        <h2>환경 준비</h2>
+        <div class="mins">60 MIN</div>
+        <ul>
+          <li>바이브 코딩이란 무엇인가</li>
+          <li>API 키 개념과 안전한 보관</li>
+          <li>VS Code 기본 조작</li>
+        </ul>
+      </section>
+
+      <!-- 6 -->
+      <section class="slide" data-part="1" data-title="설치 목록">
+        <div class="kicker">1교시 · 설치</div>
+        <h2 class="title">오늘 설치할 것</h2>
+        <table>
+          <tr><th>항목</th><th>주소</th><th>확인</th><th>비고</th></tr>
+          <tr><td class="k">VS Code</td><td><span class="u">code.visualstudio.com</span></td><td><span class="u">—</span></td><td>필수</td></tr>
+          <tr><td class="k">Node.js (LTS)</td><td><span class="u">nodejs.org</span></td><td><span class="u">node -v</span></td><td>MCP 서버 실행에 필요</td></tr>
+          <tr><td class="k">Git</td><td><span class="u">git-scm.com</span></td><td><span class="u">git --version</span></td><td>버전 관리 기초</td></tr>
+          <tr><td class="k">Cursor <span class="pill mute">선택</span></td><td><span class="u">cursor.com</span></td><td><span class="u">—</span></td><td>비교 시연용</td></tr>
+        </table>
+        <p>설치가 끝나면 <strong>VS Code 터미널을 열어</strong> 확인 명령을 직접 쳐 봅니다. 버전이 찍히면 성공입니다.</p>
+      </section>
+
+      <!-- 7 -->
+      <section class="slide" data-part="1" data-title="바이브 코딩이란">
+        <div class="kicker">1교시 · 개념</div>
+        <div class="split">
+          <div class="stack">
+            <div class="statement">코드를 <span class="a">쓰는</span> 것에서<br>코드를 <span class="a">지시하는</span> 것으로</div>
+            <p>문법을 외우는 대신, 무엇을 만들지 정확히 말하는 능력이 실력이 됩니다.</p>
+          </div>
+          <ul class="bullets">
+            <li>결과물의 품질은 <strong>요구를 얼마나 구체적으로 적었는가</strong>에 거의 비례합니다.</li>
+            <li>AI가 만든 코드도 <strong>읽고 판단</strong>해야 합니다. 읽기 능력은 여전히 필요합니다.</li>
+            <li>모델은 계속 바뀝니다. 남는 것은 <strong>작업 흐름</strong>입니다.</li>
+          </ul>
+              </div>
+      <p>그래서 오늘 <strong>도구를 고르는 기준</strong>부터 잡고 시작합니다.</p>
+      </section>
+
+      <!-- 8 -->
+      <section class="slide" data-part="1" data-title="API 키와 .env">
+        <div class="kicker">1교시 · API 키</div>
+        <h2 class="title">키는 비밀번호다</h2>
+        <div class="split">
+          <div class="stack">
+            <p>API 키는 <strong>내 계정으로 요금을 발생시킬 수 있는 출입증</strong>입니다. 코드 안에 직접 적지 않고 <code class="mono">.env</code> 파일에 넣은 뒤, 그 파일을 <code class="mono">.gitignore</code>로 막습니다.</p>
+            <pre><span class="c"># .env</span>
+NVIDIA_API_KEY=<b>nvapi-xxxxxxxxxxxx</b>
+GEMINI_API_KEY=<b>AIzaSy-xxxxxxxxxxxx</b></pre>
+          </div>
+          <div class="stack">
+            <pre><span class="c"># .gitignore</span>
+<span class="hl">.env</span>
+<span class="hl">.env.*</span>
+node_modules/</pre>
+            <ul class="bullets">
+              <li><code class="mono">.gitignore</code>를 <strong>먼저</strong> 만들고 키를 넣습니다. 순서가 중요합니다.</li>
+              <li>한 번 올라간 키는 지워도 기록에 남습니다. <strong>즉시 폐기하고 재발급</strong>합니다.</li>
+            </ul>
+          </div>
+              </div>
+      <p>키를 직접 코드에 적어 본 적이 있다면, 지금 그 파일부터 확인해 주세요.</p>
+      </section>
+
+      <!-- 9 -->
+      <section class="slide" data-part="1" data-title="실습 전 경고">
+        <div class="kicker">실습 전 · 반드시</div>
+        <div class="statement">발급받은 키를 <span class="a">화면 공유</span>나<br><span class="a">깃허브</span>에 그대로 올리지 않습니다.</div>
+        <div class="callout">
+          <span class="h">수업 중 자주 나오는 사고</span>
+          발급 화면을 그대로 띄운 채 화면 공유 · 스크린샷에 키가 찍힘 · 테스트 코드에 키를 하드코딩한 채 커밋. 셋 다 한 번의 <strong>붙여넣기</strong>에서 시작합니다.
+        </div>
+        <p>키가 노출된 것 같다면 부끄러워하지 말고 바로 말해 주세요. <strong>폐기 후 재발급이 유일한 해결책</strong>이고, 1분이면 끝납니다.</p>
+      </section>
+
+      <!-- 10 -->
+      <section class="slide divider" data-part="2" data-title="2교시 · 무료 AI 모델 연결">
+        <div class="num">2교시</div>
+        <h2>무료 AI 모델 연결</h2>
+        <div class="mins">75 MIN</div>
+        <ul>
+          <li>무료 API 키 발급 (개인별)</li>
+          <li>Roo Code / Cline에 연결</li>
+          <li>키 교체 실습</li>
+        </ul>
+      </section>
+
+      <!-- 11 -->
+      <section class="slide" data-part="2" data-title="무료 키 발급처">
+        <div class="kicker">2교시 · 발급</div>
+        <h2 class="title">오늘 받을 무료 키</h2>
+        <div class="cards">
+          <div class="card hot">
+            <h3>NVIDIA Build (NIM)</h3>
+            <p>개발자 프로그램 가입만으로 발급, <strong>카드 불필요</strong>. DeepSeek · Llama · Qwen · Mistral · Nemotron 등 100종 이상. <strong>OpenAI 호환</strong>.</p>
+            <div class="u">build.nvidia.com</div>
+          </div>
+          <div class="card hot">
+            <h3>Google AI Studio</h3>
+            <p>Gemini 무료 티어. 발급 절차가 가장 짧아 첫 키로 적당합니다.</p>
+            <div class="u">aistudio.google.com</div>
+          </div>
+          <div class="card">
+            <h3>Groq <span class="pill mute">선택</span></h3>
+            <p>응답 속도가 매우 빨라 시연 효과가 좋습니다. 여유가 있으면 세 번째로.</p>
+            <div class="u">console.groq.com</div>
+          </div>
+        </div>
+        <p><strong>각자 자기 계정으로</strong> 발급합니다. 강사 키를 나눠 쓰면 한도가 즉시 소진되고, 누가 썼는지도 알 수 없습니다.</p>
+      </section>
+
+      <!-- 12 -->
+      <section class="slide" data-part="2" data-title="NVIDIA NIM 핵심">
+        <div class="kicker">2교시 · OpenAI 호환</div>
+        <h2 class="title">바꾸는 건 두 줄뿐이다</h2>
+        <div class="split wide-left">
+          <pre>from openai import OpenAI
+
+client = OpenAI(
+    base_url=<span class="hl">"https://integrate.api.nvidia.com/v1"</span>,
+    api_key=os.environ["NVIDIA_API_KEY"],
+)
+
+resp = client.chat.completions.create(
+    model=<span class="hl">"deepseek-ai/deepseek-r1"</span>,
+    messages=[{"role": "user", "content": "안녕"}],
+)</pre>
+          <ul class="bullets">
+            <li>기존 OpenAI SDK 코드에서 <strong>base URL과 모델명</strong>만 바꾸면 그대로 돕니다.</li>
+            <li>확장 프로그램 설정도 같은 원리입니다. Provider를 <strong>OpenAI Compatible</strong>로 고르는 이유입니다.</li>
+            <li>무료 크레딧은 대략 <strong>1,000회 호출</strong> 수준. 코딩 실습에서는 빠르게 소진됩니다.</li>
+          </ul>
+              </div>
+      <p>그래서 <strong>키를 갈아끼우는 일</strong>이 예외가 아니라 기본 동작이 됩니다.</p>
+      </section>
+
+      <!-- 13 -->
+      <section class="slide" data-part="2" data-title="연결 실습 흐름">
+        <div class="kicker">2교시 · 실습</div>
+        <h2 class="title">연결하고 바로 시켜본다</h2>
+        <ol class="steps">
+          <li><b>STEP 1</b><span>VS Code 확장 마켓플레이스에서 <em>Roo Code</em> 또는 <em>Cline</em> 검색 후 설치</span></li>
+          <li><b>STEP 2</b><span>설정에서 Provider를 <em>OpenAI Compatible</em>로 선택</span></li>
+          <li><b>STEP 3</b><span>Base URL · API Key · 모델명 입력</span></li>
+          <li><b>STEP 4</b><span>첫 프롬프트로 동작 확인 — <em>"이 폴더에 hello world 웹페이지 만들어줘"</em></span></li>
+          <li><b>STEP 5</b><span>키 교체 실습 — <em>Gemini 키로 갈아끼우고</em> 같은 작업을 다시 실행</span></li>
+            </ol>
+      <p>같은 프롬프트를 <strong>다른 모델로 두 번</strong> 돌려 보고, 결과가 어떻게 달라지는지 비교합니다.</p>
+      </section>
+
+      <!-- 14 -->
+      <section class="slide divider" data-part="3" data-title="3교시 · MCP + 다음 주 준비">
+        <div class="num">3교시</div>
+        <h2>MCP 연결<br>+ 다음 주 준비</h2>
+        <div class="mins">45 MIN</div>
+        <ul>
+          <li>MCP 개념과 서버 1개 연결</li>
+          <li>공간정보 인증키 미리 신청</li>
+        </ul>
+      </section>
+
+      <!-- 15 -->
+      <section class="slide" data-part="3" data-title="MCP란">
+        <div class="kicker">3교시 · MCP</div>
+        <h2 class="title">MCP는 AI의 손이다</h2>
+        <p>Model Context Protocol — AI가 <strong>외부 도구와 데이터에 접근하는 표준 통로</strong>입니다. 대화만 하던 모델이 파일을 읽고 도구를 쓰게 됩니다.</p>
+        <div class="flow">
+          <div class="n"><b>AI 모델</b><span>무엇을 할지 판단</span></div>
+          <div class="arrow">→</div>
+          <div class="n mid"><b>MCP 서버</b><span>표준 규격의 통로</span></div>
+          <div class="arrow">→</div>
+          <div class="n"><b>파일 · API · DB</b><span>실제 도구와 데이터</span></div>
+        </div>
+        <ul class="bullets">
+          <li>VS Code 확장(Roo Code / Cline)에서는 <strong>설정 파일에 서버를 등록</strong>하는 방식입니다. Cursor와 개념적으로 동일합니다.</li>
+          <li>오늘 실습: <strong>파일시스템 MCP</strong> 같은 기본 서버 1개를 연결해 봅니다.</li>
+              </ul>
+      <p>다음 주 지도 실습에서 이 통로로 <strong>실제 공간정보</strong>를 끌어옵니다.</p>
+      </section>
+
+      <!-- 16 -->
+      <section class="slide" data-part="3" data-title="다음 주 사전 준비">
+        <div class="kicker">3교시 · 숙제</div>
+        <h2 class="title">오늘 신청해야 다음 주에 씁니다</h2>
+        <div class="callout">
+          <span class="h">승인에 시간이 걸립니다</span>
+          아래 인증키는 신청 즉시 나오지 않을 수 있습니다. <strong>오늘 안에 신청</strong>해 두세요.
+        </div>
+        <table>
+          <tr><th>기관</th><th>주소</th><th>받을 것 · 비고</th></tr>
+          <tr><td class="k">V-World 공간정보 오픈플랫폼</td><td><span class="u">www.vworld.kr</span></td><td>2D 지도 · 데이터 API. <strong>인증키 발급 시 사용 도메인 등록 필요</strong></td></tr>
+          <tr><td class="k">국토지리정보원</td><td><span class="u">www.ngii.go.kr</span></td><td>수치지형도 등</td></tr>
+          <tr><td class="k">국가공간정보포털</td><td><span class="u">www.nsdi.go.kr</span></td><td>지적도 · 연속지적도형정보</td></tr>
+              </table>
+      <p>V-World는 <strong>도메인 등록</strong>에서 막히는 경우가 많습니다. 막히면 그 화면을 캡처해 두세요.</p>
+      </section>
+
+      <!-- 17 -->
+      <section class="slide" data-part="3" data-title="2주차 예고">
+        <div class="kicker">2주차 예고</div>
+        <h2 class="title">다음 주엔 지도를 다룹니다</h2>
+        <div class="split">
+          <ul class="bullets">
+            <li>V-World 인증키 → <strong>2D 지도 API</strong> → 데이터 API 호출</li>
+            <li>국토지리정보원 <strong>수치지형도</strong> 신청과 수급 절차</li>
+            <li><strong>지적도 · 연속지적도</strong> 받아오기</li>
+          </ul>
+          <ul class="bullets">
+            <li>좌표계 정리 — <strong>EPSG:5186 등 국내 좌표계 ↔ WGS84</strong> 변환</li>
+            <li>진행 중인 <strong>건축 · 공간 프로젝트</strong>와 연계한 실습 시나리오</li>
+          </ul>
+        </div>
+        <p>오늘 만든 작업대 위에서 바로 이어갑니다. <strong>환경이 준비되지 않으면 다음 주에 따라오기 어렵습니다.</strong></p>
+      </section>
+
+      <!-- 18 -->
+      <section class="slide" data-part="4" data-title="마무리 체크리스트">
+        <div class="kicker">돌아가기 전에</div>
+        <h2 class="title">체크리스트</h2>
+        <div class="checks">
+          <div>VS Code 설치 완료</div>
+          <div>Roo Code(또는 Cline) 확장 설치</div>
+          <div>Node.js 설치 완료 — node -v 확인</div>
+          <div>확장에 API 키 연결 후 첫 프롬프트 성공</div>
+          <div>Git 설치 완료 — git --version 확인</div>
+          <div>.env 파일 생성 및 .gitignore 등록</div>
+          <div>NVIDIA Build 가입 및 API 키 발급</div>
+          <div>V-World 인증키 신청 완료</div>
+          <div>Google AI Studio API 키 발급</div>
+          <div>키를 커밋하지 않았는지 마지막 확인</div>
+        </div>
+        <p>하나라도 비어 있으면 <strong>다음 주 시작 전까지</strong> 채워 오세요. 막히면 어디서 막혔는지만 적어서 가져오면 됩니다.</p>
+      </section>
+
+    </div>
+
+    <footer>
+      <div class="hair"></div>
+      <div class="bar foot">
+        <span class="foot-label">1주차 · 환경 세팅</span>
+        <div class="prog">
+          <div class="seg" data-min="60"><i></i></div>
+          <div class="seg" data-min="75"><i></i></div>
+          <div class="seg" data-min="45"><i></i></div>
+        </div>
+        <button id="idxBtn" type="button" aria-label="목차 열기">목차</button>
+        <div class="nav">
+          <button type="button" id="prev" aria-label="이전 슬라이드">&#8592;</button>
+          <button type="button" id="next" aria-label="다음 슬라이드">&#8594;</button>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+</div>
+
+<div id="idx" role="dialog" aria-label="슬라이드 목차">
+  <h4>목차 — 클릭해서 이동 · ESC 닫기</h4>
+  <ol id="idxList"></ol>
+</div>
+
+<script>
+(function(){
+  var stage = document.getElementById('stage');
+  var wrap  = document.getElementById('wrap');
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var segs = Array.prototype.slice.call(document.querySelectorAll('.seg i'));
+  var eyebrow = document.getElementById('eyebrow');
+  var count = document.getElementById('count');
+  var idx = document.getElementById('idx');
+  var idxList = document.getElementById('idxList');
+  var cur = 0;
+
+  var partLabel = {
+    '0':'바이브 코딩 · AI 코딩',
+    '1':'1교시 · 환경 준비 · 60분',
+    '2':'2교시 · 무료 AI 모델 연결 · 75분',
+    '3':'3교시 · MCP + 다음 주 준비 · 45분',
+    '4':'부록 · 배포용 체크리스트'
+  };
+
+  function fit(){
+    var W = wrap.clientWidth, H = wrap.clientHeight;
+    var pad = W < 600 ? 8 : 16;
+    var s = Math.min((W - pad * 2) / 1280, (H - pad * 2) / 720);
+    var x = (W - 1280 * s) / 2, y = (H - 720 * s) / 2;
+    stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+  }
+
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+
+  function progress(part, i){
+    var p = parseInt(part, 10);
+    for (var k = 1; k <= 3; k++){
+      var fill = 0;
+      if (p > k || p === 4) fill = 100;
+      else if (p === k){
+        var group = slides.filter(function(s){ return s.dataset.part === String(k); });
+        fill = (group.indexOf(slides[i]) + 1) / group.length * 100;
+      }
+      segs[k-1].style.width = fill + '%';
+    }
+  }
+
+  function show(n, push){
+    cur = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function(s, i){ s.classList.toggle('is-active', i === cur); });
+    var part = slides[cur].dataset.part;
+    eyebrow.textContent = partLabel[part] || '';
+    count.textContent = pad(cur + 1) + ' / ' + pad(slides.length);
+    progress(part, cur);
+    Array.prototype.forEach.call(idxList.querySelectorAll('button'), function(b, i){
+      b.classList.toggle('cur', i === cur);
+    });
+    if (push !== false) history.replaceState(null, '', '#' + (cur + 1));
+  }
+
+  slides.forEach(function(s, i){
+    var li = document.createElement('li');
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<i>' + pad(i + 1) + '</i><span></span>';
+    b.querySelector('span').textContent = s.dataset.title;
+    b.addEventListener('click', function(){ closeIdx(); show(i); });
+    li.appendChild(b);
+    idxList.appendChild(li);
+  });
+
+  function openIdx(){ idx.classList.add('open'); }
+  function closeIdx(){ idx.classList.remove('open'); }
+  function toggleIdx(){ idx.classList.contains('open') ? closeIdx() : openIdx(); }
+
+  document.getElementById('next').addEventListener('click', function(){ show(cur + 1); });
+  document.getElementById('prev').addEventListener('click', function(){ show(cur - 1); });
+  document.getElementById('idxBtn').addEventListener('click', toggleIdx);
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ closeIdx(); return; }
+    if (e.key === 'o' || e.key === 'O' || e.key === 'ㅐ'){ toggleIdx(); return; }
+    if (idx.classList.contains('open')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' '){ e.preventDefault(); show(cur + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); show(cur - 1); }
+    else if (e.key === 'Home'){ show(0); }
+    else if (e.key === 'End'){ show(slides.length - 1); }
+  });
+
+  // phone: swipe to advance (the footer arrows shrink with the stage)
+  var tx = 0, ty = 0;
+  wrap.addEventListener('touchstart', function(e){
+    tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY;
+  }, { passive: true });
+  wrap.addEventListener('touchend', function(e){
+    var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) show(dx < 0 ? cur + 1 : cur - 1);
+  }, { passive: true });
+
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', fit);
+  fit();
+
+  var start = parseInt((location.hash || '').replace('#', ''), 10);
+  show(isNaN(start) ? 0 : start - 1, false);
+})();
+</script>
