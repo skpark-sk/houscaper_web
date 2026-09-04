@@ -4,7 +4,7 @@
 //   npm run build:unity
 //
 // Unity Hub install locations are scanned automatically. Set UNITY_PATH to override:
-//   UNITY_PATH="C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f1\\Editor\\Unity.exe" npm run build:unity
+//   UNITY_PATH="C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.23f1\\Editor\\Unity.exe" npm run build:unity
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -86,11 +86,11 @@ if (!unity) {
       "Looked under:",
       ...hubRoots.map((root) => `  ${root}`),
       "",
-      "Install one (any 2022.3 or newer, with the WebGL Build Support module):",
-      "  unity install 2022.3.62f1",
+      "Install one (Unity 6.3 LTS or newer, with the WebGL Build Support module):",
+      "  unity install 6000.3.23f1",
       "",
       "Or point at it directly:",
-      '  UNITY_PATH="C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.62f1\\Editor\\Unity.exe" npm run build:unity',
+      '  UNITY_PATH="C:\\Program Files\\Unity\\Hub\\Editor\\6000.3.23f1\\Editor\\Unity.exe" npm run build:unity',
       "",
       "Or build from the editor: open unity/Houscaper, then Houscaper > Build WebGL.",
     ].join("\n"),

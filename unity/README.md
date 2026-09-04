@@ -52,6 +52,11 @@ unity/Houscaper/Assets/
   WebGLTemplates/Houscaper/ loading screen
 ```
 
+Targets **Unity 6.3 LTS** (`6000.3.x`) with the built-in render pipeline — the manifest
+pulls no render pipeline package, so URP never takes over and the pastel shaders keep working.
+Editor discovery in `npm run build:unity` picks the newest Hub install, so a different 6.x patch
+is fine; Unity rewrites `ProjectVersion.txt` on first open.
+
 The scene asset is **generated, not committed** — it holds nothing but a `Bootstrap` object, so
 there is no hand-authored scene YAML to drift between Unity versions. Open the project and it
 appears; `Houscaper ▸ Regenerate Main Scene` rebuilds it.
@@ -65,7 +70,7 @@ Headless, from the repository root:
 ```sh
 npm run build:unity
 # or point at a specific editor
-UNITY_PATH="/Applications/Unity/Hub/Editor/2022.3.62f1/Unity.app/Contents/MacOS/Unity" npm run build:unity
+UNITY_PATH="/Applications/Unity/Hub/Editor/6000.3.23f1/Unity.app/Contents/MacOS/Unity" npm run build:unity
 ```
 
 Output lands in `public/unity/`, which `.gitignore` excludes and which
