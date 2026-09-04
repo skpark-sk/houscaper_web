@@ -205,3 +205,10 @@ Other scripts find list **intersection indices** between two trees (shared corne
 The browser demo reuses `bmc-data.js` (26 canonical tiles + 256 lookup) for **surface** placement rules, and adds an **ffmm / architectural** brush mode (base / floor / window / opening) aligned with the module layers in `ffmm.3dm` and the label IDs in `revised tile2.gh`.
 
 See `townscaper.html` for the playable loop.
+
+## Unity WebGL port
+
+`unity/Houscaper` reimplements this corner/octant model in Unity for the WebGL build. It keeps
+the BMC premise — clicks set lattice corners, and geometry is generated per octant rather than
+per voxel — but generates its tileset procedurally in C# instead of loading the Rhino atlas, so
+the modules are authored for a Brick Block-style pastel look. See `unity/README.md`.

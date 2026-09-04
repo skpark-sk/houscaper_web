@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: #eaf2f7;
+        font-family: ui-sans-serif, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+        color: #4a4640;
+        overflow: hidden;
+      }
+      #wrap { position: fixed; inset: 0; }
+      #unity-canvas { width: 100%; height: 100%; display: block; background: #eaf2f7; }
+
+      #loader {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 18px;
+        background: linear-gradient(180deg, #a9d3ef 0%, #eaf2f7 70%);
+        transition: opacity 420ms ease;
+      }
+      #loader.done { opacity: 0; pointer-events: none; }
+      #loader h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: -0.01em; }
+      #loader p { margin: 0; font-size: 14px; color: #7d786f; }
+
+      #bar {
+        width: 220px; height: 8px; border-radius: 999px;
+        background: rgba(255, 255, 255, 0.62); overflow: hidden;
+      }
+      #fill { height: 100%; width: 0%; border-radius: 999px; background: #d3806f; transition: width 180ms ease; }
+
+      #error {
+        position: absolute; inset: auto 24px 24px 24px;
+        padding: 14px 16px; border-radius: 12px;
+        background: #fff4f2; color: #8c3d2e; font-size: 13px;
+        display: none; white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+
+      <div id="loader">
+        <h1>Houscaper</h1>
+        <div id="bar"><div id="fill"></div></div>
+        <p>섬을 띄우는 중…</p>
+      </div>
+
+      <div id="error"></div>
+    </div>
+
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var loader = document.querySelector("#loader");
+      var fill = document.querySelector("#fill");
+      var errorBox = document.querySelector("#error");
+
+      function showError(message) {
+        errorBox.style.display = "block";
+        errorBox.textContent = message;
+      }
+
+      var config = {
+        dataUrl: "Build/{{{ DATA_FILENAME }}}",
+        frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+        codeUrl: "Build/{{{ CODE_FILENAME }}}",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "{{{ COMPANY_NAME }}}",
+        productName: "{{{ PRODUCT_NAME }}}",
+        productVersion: "{{{ PRODUCT_VERSION }}}",
+        matchWebGLToCanvasSize: true,
+      };
+
+      var script = document.createElement("script");
+      script.src = "Build/{{{ LOADER_FILENAME }}}";
+
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          fill.style.width = Math.round(progress * 100) + "%";
+        })
+          .then(function () {
+            loader.classList.add("done");
+          })
+          .catch(showError);
+      };
+
+      script.onerror = function () {
+        showError("Unity 로더를 불러오지 못했습니다. 빌드 파일이 Build/ 아래에 있는지 확인하세요.");
+      };
+
+      document.body.appendChild(script);
+
+      // The canvas swallows wheel events; stop the page from scrolling behind it.
+      canvas.addEventListener("wheel", function (event) { event.preventDefault(); }, { passive: false });
+      canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+    </script>
+  </body>
+</html>
