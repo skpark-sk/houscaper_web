@@ -17,11 +17,15 @@ namespace Houscaper.EditorTools
 
         static HouscaperSceneSetup()
         {
-            EditorApplication.delayCall += () =>
-            {
-                if (File.Exists(ScenePath)) return;
-                CreateScene(openIt: false);
-            };
+            EditorApplication.delayCall += EnsureMainScene;
+        }
+
+        static void EnsureMainScene()
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+            if (EditorApplication.isCompiling) return;
+            if (File.Exists(ScenePath)) return;
+            CreateScene(openIt: true);
         }
 
         [MenuItem("Houscaper/Regenerate Main Scene")]
@@ -29,19 +33,30 @@ namespace Houscaper.EditorTools
 
         static void CreateScene(bool openIt)
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Debug.LogWarning("Houscaper: cannot create Main scene while playing.");
+                return;
+            }
+
             Directory.CreateDirectory("Assets/Scenes");
 
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            // Single mode: Additive fails when the only open scene is an unsaved Untitled scene.
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var go = new GameObject("Houscaper");
-            go.AddComponent<Bootstrap>();
             SceneManager.MoveGameObjectToScene(go, scene);
+            go.AddComponent<Bootstrap>();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            if (!openIt) EditorSceneManager.CloseScene(scene, true);
 
             AssetDatabase.Refresh();
             RegisterInBuildSettings();
+
+            if (openIt)
+            {
+                EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            }
 
             Debug.Log("Houscaper: generated " + ScenePath);
         }
