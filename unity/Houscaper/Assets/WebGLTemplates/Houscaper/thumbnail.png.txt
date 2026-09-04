@@ -1,0 +1,2 @@
+Unity shows a template thumbnail in Player Settings when a 128x128 thumbnail.png sits here.
+It is optional and intentionally omitted so the repository stays free of binaries.
